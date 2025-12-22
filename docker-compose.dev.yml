@@ -1,0 +1,82 @@
+# Development override - use with: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  # Reverse Proxy - exposed on port 3000 for dev
+  proxy:
+    ports:
+      - "3000:80"
+      - "3443:443"
+
+  # Frontend with hot reload
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+    environment:
+      - VITE_API_URL=http://localhost:3000/api
+
+  # Backend with hot reload
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://gates:devpassword@postgres:5432/gates
+      - REDIS_URL=redis://redis:6379
+      - SESSION_SECRET=dev-session-secret-change-in-production
+      - AUTHENTIK_URL=http://authentik:9000
+      - AUTHENTIK_CLIENT_ID=gates-dev
+      - AUTHENTIK_CLIENT_SECRET=dev-client-secret
+      - LOG_LEVEL=debug
+      - MOCK_SERVER_URL=http://mock-server:4000
+      - BASE_URL=http://localhost:3000
+    volumes:
+      - ./backend/src:/app/src
+      - ./config:/app/config
+
+  # Mock Webhook Server for development (simulates gate controllers)
+  mock-server:
+    build:
+      context: ./mock-server
+      dockerfile: Dockerfile
+    container_name: gates-mock-server
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - LOG_LEVEL=debug
+    volumes:
+      - ./mock-server/src:/app/src
+    networks:
+      - internal
+      - edge
+
+  # PostgreSQL with dev password
+  postgres:
+    environment:
+      - POSTGRES_PASSWORD=devpassword
+    ports:
+      - "5432:5432"
+
+  # Redis exposed for debugging
+  redis:
+    ports:
+      - "6379:6379"
+
+  # Authentik with dev settings
+  authentik:
+    environment:
+      - AUTHENTIK_SECRET_KEY=dev-authentik-secret-key-change-in-production
+      - AUTHENTIK_POSTGRESQL__PASSWORD=devpassword
+    ports:
+      - "9000:9000"
+
+  authentik-worker:
+    environment:
+      - AUTHENTIK_SECRET_KEY=dev-authentik-secret-key-change-in-production
+      - AUTHENTIK_POSTGRESQL__PASSWORD=devpassword

@@ -1,0 +1,108 @@
+# Gates Configuration
+# This is the source of truth for all gate definitions
+# Changes here will be synced to the database on reload
+
+version: 1
+
+settings:
+  defaultCooldownMs: 2000
+  logLevel: info
+  maintenanceMode: false
+
+locations:
+  - id: home
+    name: Home
+    enabled: true
+    metadata:
+      address: "123 Main Street"
+    areas:
+      - id: garage
+        name: Garage
+        enabled: true
+        gates:
+          # Example: Webhook-based gate (for development without GPIO)
+          - id: main-gate
+            name: Main Garage Door
+            enabled: true
+            driver: webhook
+            capabilities:
+              - open
+              - close
+              - stop
+            config:
+              endpoints:
+                open: http://mock-server:4000/gate/main-gate/open
+                close: http://mock-server:4000/gate/main-gate/close
+                stop: http://mock-server:4000/gate/main-gate/stop
+              method: POST
+              timeoutMs: 5000
+
+          - id: side-gate
+            name: Side Door
+            enabled: true
+            driver: webhook
+            capabilities:
+              - open
+              - close
+            config:
+              endpoints:
+                open: http://mock-server:4000/gate/side-gate/open
+                close: http://mock-server:4000/gate/side-gate/close
+              method: POST
+              timeoutMs: 5000
+
+      - id: entrance
+        name: Entrance
+        enabled: true
+        gates:
+          - id: front-gate
+            name: Front Gate
+            enabled: true
+            driver: webhook
+            capabilities:
+              - open
+              - close
+              - stop
+              - toggle
+            config:
+              # Using unified endpoint pattern
+              endpoint: http://mock-server:4000/gates/command
+              method: POST
+              timeoutMs: 5000
+
+          # Example: Disabled gate
+          - id: pedestrian-gate
+            name: Pedestrian Gate
+            enabled: false
+            driver: webhook
+            capabilities:
+              - toggle
+            config:
+              endpoints:
+                toggle: http://mock-server:4000/gate/pedestrian-gate/toggle
+              method: POST
+              timeoutMs: 5000
+            metadata:
+              notes: "Currently under maintenance"
+
+# Example GPIO configuration (for when running on Raspberry Pi)
+# Uncomment and modify when deploying to actual hardware
+#
+#   - id: driveway
+#     name: Driveway
+#     enabled: true
+#     gates:
+#       - id: driveway-gate
+#         name: Driveway Gate
+#         enabled: true
+#         driver: gpio
+#         capabilities:
+#           - open
+#           - close
+#           - stop
+#         config:
+#           openPin: 17
+#           closePin: 27
+#           stopPin: 22
+#           pulseDurationMs: 500
+#           activeHigh: false

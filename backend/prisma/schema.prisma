@@ -1,0 +1,148 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Users (mapped from Authentik by external ID)
+model User {
+  id          String   @id @default(cuid())
+  externalId  String   @unique @map("external_id")
+  email       String?
+  displayName String?  @map("display_name")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  permissions   UserPermission[]
+  invitesCreated Invite[]        @relation("InviteCreator")
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+// Locations (homes)
+model Location {
+  id        String   @id
+  name      String
+  enabled   Boolean  @default(true)
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  areas Area[]
+
+  @@map("locations")
+}
+
+// Areas within a location
+model Area {
+  id         String   @id
+  locationId String   @map("location_id")
+  name       String
+  enabled    Boolean  @default(true)
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  gates    Gate[]
+
+  @@map("areas")
+}
+
+// Gates (controllable units)
+model Gate {
+  id           String   @id
+  areaId       String   @map("area_id")
+  name         String
+  enabled      Boolean  @default(true)
+  driverType   String   @map("driver_type")
+  driverConfig Json     @default("{}") @map("driver_config")
+  capabilities String[]
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  area      Area       @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  auditLogs AuditLog[]
+
+  @@map("gates")
+}
+
+// User permissions (including guest access)
+model UserPermission {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  scopeType  ScopeType @map("scope_type")
+  scopeId    String    @map("scope_id")
+  actions    String[]
+  expiresAt  DateTime? @map("expires_at")
+  grantedBy  String?   @map("granted_by")
+  inviteId   String?   @map("invite_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invite Invite? @relation(fields: [inviteId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([scopeType, scopeId])
+  @@map("user_permissions")
+}
+
+enum ScopeType {
+  LOCATION
+  AREA
+  GATE
+}
+
+// Invites for guest access
+model Invite {
+  id             String    @id @default(cuid())
+  tokenHash      String    @unique @map("token_hash")
+  createdById    String    @map("created_by_id")
+  scopeType      ScopeType @map("scope_type")
+  scopeId        String    @map("scope_id")
+  allowedActions String[]  @map("allowed_actions")
+  expiresAt      DateTime  @map("expires_at")
+  maxUses        Int?      @map("max_uses")
+  useCount       Int       @default(0) @map("use_count")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  createdBy   User             @relation("InviteCreator", fields: [createdById], references: [id])
+  permissions UserPermission[]
+
+  @@map("invites")
+}
+
+// Audit log for all command attempts
+model AuditLog {
+  id           String   @id @default(cuid())
+  userId       String?  @map("user_id")
+  gateId       String?  @map("gate_id")
+  action       String
+  result       String   // 'success' | 'failure' | 'denied'
+  errorMessage String?  @map("error_message")
+  clientIp     String?  @map("client_ip")
+  userAgent    String?  @map("user_agent")
+  latencyMs    Int?     @map("latency_ms")
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  gate Gate? @relation(fields: [gateId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([gateId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

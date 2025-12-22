@@ -1,0 +1,150 @@
+services:
+  # Reverse Proxy - Single entrypoint
+  proxy:
+    image: caddy:2-alpine
+    container_name: gates-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+    depends_on:
+      - frontend
+      - backend
+
+  # Frontend SPA
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: gates-frontend
+    restart: unless-stopped
+    networks:
+      - edge
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gates-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://gates:${POSTGRES_PASSWORD}@postgres:5432/gates
+      - SESSION_SECRET=${SESSION_SECRET}
+      - AUTHENTIK_URL=http://authentik:9000
+      - AUTHENTIK_CLIENT_ID=${AUTHENTIK_CLIENT_ID}
+      - AUTHENTIK_CLIENT_SECRET=${AUTHENTIK_CLIENT_SECRET}
+    volumes:
+      - ./config:/app/config:ro
+      - ./config/history:/app/config/history
+    networks:
+      - edge
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:17-alpine
+    container_name: gates-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=gates
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=gates
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gates"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis (for Authentik and sessions)
+  redis:
+    image: redis:8-alpine
+    container_name: gates-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Authentik Server
+  authentik:
+    image: ghcr.io/goauthentik/server:2025.10.3
+    container_name: gates-authentik
+    restart: unless-stopped
+    command: server
+    environment:
+      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
+      - AUTHENTIK_REDIS__HOST=redis
+      - AUTHENTIK_POSTGRESQL__HOST=postgres
+      - AUTHENTIK_POSTGRESQL__USER=gates
+      - AUTHENTIK_POSTGRESQL__NAME=authentik
+      - AUTHENTIK_POSTGRESQL__PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - authentik_media:/media
+      - authentik_templates:/templates
+    networks:
+      - edge
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Authentik Worker
+  authentik-worker:
+    image: ghcr.io/goauthentik/server:2025.10.3
+    container_name: gates-authentik-worker
+    restart: unless-stopped
+    command: worker
+    environment:
+      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
+      - AUTHENTIK_REDIS__HOST=redis
+      - AUTHENTIK_POSTGRESQL__HOST=postgres
+      - AUTHENTIK_POSTGRESQL__USER=gates
+      - AUTHENTIK_POSTGRESQL__NAME=authentik
+      - AUTHENTIK_POSTGRESQL__PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - authentik_media:/media
+      - authentik_templates:/templates
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+networks:
+  edge:
+    name: gates-edge
+  internal:
+    name: gates-internal
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
+  authentik_media:
+  authentik_templates:

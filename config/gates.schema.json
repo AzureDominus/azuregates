@@ -1,0 +1,217 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Gates Configuration",
+  "description": "Configuration schema for the Garage Gate Opener v2",
+  "type": "object",
+  "required": ["version", "settings", "locations"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Configuration schema version"
+    },
+    "settings": {
+      "type": "object",
+      "required": ["defaultCooldownMs", "logLevel"],
+      "properties": {
+        "defaultCooldownMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60000,
+          "default": 2000,
+          "description": "Default cooldown between commands in milliseconds"
+        },
+        "logLevel": {
+          "type": "string",
+          "enum": ["fatal", "error", "warn", "info", "debug", "trace"],
+          "default": "info"
+        },
+        "maintenanceMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, all gate commands are disabled"
+        }
+      }
+    },
+    "locations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/location"
+      }
+    }
+  },
+  "$defs": {
+    "location": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$",
+          "description": "Unique identifier for the location"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable name"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "areas": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/area"
+          }
+        }
+      }
+    },
+    "area": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "gates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/gate"
+          }
+        }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "required": ["id", "name", "driver", "capabilities"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "driver": {
+          "type": "string",
+          "enum": ["gpio", "webhook"]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["open", "close", "stop", "toggle", "state"]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "config": {
+          "oneOf": [
+            { "$ref": "#/$defs/gpioConfig" },
+            { "$ref": "#/$defs/webhookConfig" }
+          ]
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "gpioConfig": {
+      "type": "object",
+      "required": ["pulseDurationMs", "activeHigh"],
+      "properties": {
+        "openPin": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40
+        },
+        "closePin": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40
+        },
+        "stopPin": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40
+        },
+        "togglePin": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40
+        },
+        "pulseDurationMs": {
+          "type": "integer",
+          "minimum": 50,
+          "maximum": 5000,
+          "default": 500
+        },
+        "activeHigh": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "webhookConfig": {
+      "type": "object",
+      "properties": {
+        "endpoints": {
+          "type": "object",
+          "properties": {
+            "open": { "type": "string", "format": "uri" },
+            "close": { "type": "string", "format": "uri" },
+            "stop": { "type": "string", "format": "uri" },
+            "toggle": { "type": "string", "format": "uri" },
+            "state": { "type": "string", "format": "uri" }
+          }
+        },
+        "endpoint": {
+          "type": "string",
+          "format": "uri"
+        },
+        "actionParam": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["GET", "POST", "PUT"],
+          "default": "POST"
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 30000,
+          "default": 5000
+        }
+      }
+    }
+  }
+}

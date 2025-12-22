@@ -1,0 +1,65 @@
+# Gates Application - Reverse Proxy Configuration
+# Caddy automatically handles HTTPS certificates
+
+{
+    # Global options
+    admin off
+    
+    # For local development without HTTPS
+    auto_https off
+}
+
+# Main site - accessible via gates.local or localhost
+:80 {
+    # Backend API (handle first to avoid catch-all)
+    handle /api/* {
+        reverse_proxy backend:3001
+    }
+
+    # Authentik authentication
+    handle /auth/* {
+        reverse_proxy authentik:9000
+    }
+
+    # Health check endpoint (for load balancers/monitoring)
+    handle /health {
+        reverse_proxy backend:3001
+    }
+
+    # Frontend SPA (catch-all - Vite dev server on 5173)
+    handle {
+        reverse_proxy frontend:5173
+    }
+
+    # Logging
+    log {
+        output stdout
+        format json
+    }
+}
+
+# HTTPS site (for production or when TLS is enabled)
+:443 {
+    # Use self-signed cert for local development
+    tls internal
+
+    # Backend API
+    handle /api/* {
+        reverse_proxy backend:3001
+    }
+
+    # Authentik authentication
+    handle /auth/* {
+        reverse_proxy authentik:9000
+    }
+
+    # Frontend SPA (Vite dev server on 5173)
+    handle {
+        reverse_proxy frontend:5173
+    }
+
+    log {
+        output stdout
+        format json
+    }
+}

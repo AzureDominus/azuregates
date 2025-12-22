@@ -1,0 +1,14 @@
+{
+  "name": "gates-mock-server",
+  "version": "0.1.0",
+  "description": "Mock webhook server for gate simulation in development",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}

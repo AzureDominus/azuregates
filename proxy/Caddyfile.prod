@@ -1,0 +1,111 @@
+# Production Caddy Configuration for Gates Application
+# Supports both local access via mDNS and optional remote access via Cloudflare
+
+{
+    # Enable admin API for health checks
+    admin :2019
+
+    # Production settings
+    email {$ACME_EMAIL:admin@localhost}
+    
+    # For local-only deployment without Let's Encrypt
+    # Uncomment the following line if not using HTTPS
+    # auto_https off
+}
+
+# Local access via mDNS hostname (e.g., gates.local)
+gates.local, localhost, {$HOSTNAME:gates.home} {
+    # Use self-signed cert for local HTTPS (browsers will warn but it works)
+    tls internal
+
+    # Backend API
+    handle /api/* {
+        reverse_proxy backend:3001 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    # Authentik authentication
+    handle /auth/* {
+        reverse_proxy authentik:9000 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    # Authentik outpost (if using forward auth)
+    handle /outpost.goauthentik.io/* {
+        reverse_proxy authentik:9000 {
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Health check
+    handle /health {
+        reverse_proxy backend:3001
+    }
+
+    # Frontend (production nginx serving built files)
+    handle {
+        reverse_proxy frontend:80 {
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Security headers
+    header {
+        # Prevent XSS
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        # CSP - adjust as needed
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+    }
+
+    # Logging
+    log {
+        output stdout
+        format json
+        level INFO
+    }
+}
+
+# If using a custom domain with Cloudflare Tunnel
+# Replace with your actual domain
+{$CUSTOM_DOMAIN:} {
+    # Let Caddy handle HTTPS (or Cloudflare handles it at edge)
+    
+    # Same configuration as above
+    handle /api/* {
+        reverse_proxy backend:3001 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+        }
+    }
+
+    handle /auth/* {
+        reverse_proxy authentik:9000 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+        }
+    }
+
+    handle {
+        reverse_proxy frontend:80 {
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+
+    log {
+        output stdout
+        format json
+        level INFO
+    }
+}

@@ -1,0 +1,18 @@
+[Unit]
+Description=Gates Application Auto-Update Service
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/gates/scripts/update.sh
+WorkingDirectory=/opt/gates
+User=root
+StandardOutput=journal
+StandardError=journal
+
+# Environment file for any needed variables
+EnvironmentFile=-/opt/gates/.env
+
+[Install]
+WantedBy=multi-user.target
