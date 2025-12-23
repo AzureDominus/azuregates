@@ -10,14 +10,21 @@ import { getCurrentUser, type SessionUser } from './session.js';
 let oidcConfig: openidClient.Configuration | null = null;
 let codeVerifier: string | null = null;
 
+// Allow HTTP in development (openid-client requires HTTPS by default)
+const execute: openidClient.CustomFetch | undefined = config.nodeEnv === 'development' 
+  ? (...args) => openidClient.customFetch(...args)
+  : undefined;
+
 async function getOidcConfig(): Promise<openidClient.Configuration> {
   if (oidcConfig) return oidcConfig;
 
-  const issuerUrl = new URL(`${config.authentik.url}/application/o/gates/`);
+  const issuerUrl = new URL(`${config.authentik.url}/application/o/${config.authentik.slug}/`);
 
   try {
     oidcConfig = await openidClient.discovery(issuerUrl, config.authentik.clientId, {
       client_secret: config.authentik.clientSecret,
+    }, undefined, {
+      execute: config.nodeEnv === 'development' ? [openidClient.allowInsecureRequests] : undefined,
     });
     logger.info({ issuer: issuerUrl.toString() }, 'OIDC discovery completed');
     return oidcConfig;
@@ -85,8 +92,14 @@ export async function oidcRoutes(app: FastifyInstance) {
         code_challenge_method: 'S256',
       });
 
-      logger.info({ authUrl: authUrl.href }, 'Redirecting to OIDC provider');
-      return reply.redirect(authUrl.href);
+      // Replace internal Authentik URL with external URL for browser redirect
+      const externalAuthUrl = authUrl.href.replace(
+        config.authentik.url,
+        config.authentik.externalUrl
+      );
+
+      logger.info({ authUrl: externalAuthUrl }, 'Redirecting to OIDC provider');
+      return reply.redirect(externalAuthUrl);
     } catch (err) {
       logger.error({ err }, 'Failed to initiate OIDC login');
       return reply.status(500).send({ 

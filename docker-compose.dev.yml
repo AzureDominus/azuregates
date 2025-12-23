@@ -30,8 +30,10 @@ services:
       - REDIS_URL=redis://redis:6379
       - SESSION_SECRET=dev-session-secret-change-in-production
       - AUTHENTIK_URL=http://authentik:9000
+      - AUTHENTIK_EXTERNAL_URL=http://localhost:9000
       - AUTHENTIK_CLIENT_ID=gates-dev
       - AUTHENTIK_CLIENT_SECRET=dev-client-secret
+      - AUTHENTIK_SLUG=azure-gates
       - LOG_LEVEL=debug
       - MOCK_SERVER_URL=http://mock-server:4000
       - BASE_URL=http://localhost:3000

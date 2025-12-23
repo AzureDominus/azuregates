@@ -61,7 +61,75 @@ This guide walks you through setting up Authentik for the Gates application.
 
 3. Click **Create**
 
-## Step 4: Create Local Users
+## Step 4: Add Google OAuth (Optional)
+
+Enable "Sign in with Google" for users with Google accounts.
+
+### 4.1: Create Google OAuth Credentials
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Create a new project or select existing
+3. Navigate to **APIs & Services** → **Credentials**
+4. Click **Create Credentials** → **OAuth client ID**
+5. Configure consent screen if prompted:
+   - User Type: **External** (or Internal for Workspace)
+   - App name: `Gates`
+   - User support email: your email
+   - Authorized domains: your domain (for production)
+6. Create OAuth Client ID:
+   - Application type: **Web application**
+   - Name: `Authentik`
+   - Authorized redirect URIs: `http://localhost:9000/source/oauth/callback/google/`
+   - For production: `https://auth.yourdomain.com/source/oauth/callback/google/`
+7. Copy the **Client ID** and **Client Secret**
+
+### 4.2: Create Google OAuth Source in Authentik
+
+1. Go to **Directory** → **Federation & Social login**
+2. Click **Create** → **OAuth Source**
+
+| Field | Value |
+|-------|-------|
+| Name | `Google` |
+| Slug | `google` |
+| Authentication flow | `default-source-authentication` |
+| Enrollment flow | `default-source-enrollment` |
+| Provider type | `Google` |
+| Consumer Key | Your Google Client ID |
+| Consumer Secret | Your Google Client Secret |
+| Scopes | `openid email profile` |
+
+3. Click **Create**
+
+### 4.3: Enable Google on Login Flow
+
+1. Go to **Flows & Stages** → **Flows**
+2. Click on `default-authentication-flow`
+3. Click **Stage Bindings** tab
+4. Find `default-authentication-identification` stage
+5. Click the stage name to edit
+6. Under **Sources**, enable `Google`
+7. Click **Update**
+
+Now users will see "Sign in with Google" on the login page.
+
+### 4.4: Restrict to Specific Email Domains (Optional)
+
+To only allow specific email domains (e.g., company emails):
+
+1. Go to **Customization** → **Policies**
+2. Click **Create** → **Expression Policy**
+3. Configure:
+   - Name: `allowed-email-domains`
+   - Expression:
+     ```python
+     allowed_domains = ["yourdomain.com", "gmail.com"]
+     user_email = request.context.get("pending_user", {}).get("email", "")
+     return any(user_email.endswith(f"@{domain}") for domain in allowed_domains)
+     ```
+4. Bind this policy to your enrollment flow
+
+## Step 5: Create Local Users (Optional)
 
 For LAN-only authentication (works without internet):
 
