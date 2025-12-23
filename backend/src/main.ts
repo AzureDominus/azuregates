@@ -6,6 +6,7 @@ import { config } from './config/env.js';
 import { healthRoutes } from './api/health.js';
 import { gatesRoutes } from './api/gates.js';
 import { configRoutes } from './api/config.js';
+import { adminRoutes } from './api/admin.js';
 import { oidcRoutes } from './auth/oidc.js';
 import { guestRoutes } from './auth/guest.js';
 import { setupSession } from './auth/session.js';
@@ -56,6 +57,7 @@ await app.register(oidcRoutes, { prefix: '/api/auth' });
 await app.register(guestRoutes, { prefix: '/api/guest' });
 await app.register(gatesRoutes, { prefix: '/api' });
 await app.register(configRoutes, { prefix: '/api/config' });
+await app.register(adminRoutes, { prefix: '/api/admin' });
 
 // Load gate configuration on startup
 try {

@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Settings, FileText, Shield, LogIn, LogOut, User, Users } from 'lucide-react';
+import { Home, Settings, FileText, Shield, LogIn, LogOut, User, Users, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
 interface LayoutProps {
@@ -9,9 +9,10 @@ interface LayoutProps {
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: Home },
-  { path: '/invites', label: 'Guest Access', icon: Users, requireAuth: true },
-  { path: '/settings', label: 'Settings', icon: Settings },
-  { path: '/audit', label: 'Audit Logs', icon: FileText },
+  { path: '/invites', label: 'Guest Access', icon: Users, requireAdmin: true },
+  { path: '/admin', label: 'Admin', icon: ShieldCheck, requireAdmin: true },
+  { path: '/settings', label: 'Settings', icon: Settings, requireAdmin: true },
+  { path: '/audit', label: 'Audit Logs', icon: FileText, requireAdmin: true },
 ];
 
 export function Layout({ children }: LayoutProps) {
@@ -19,9 +20,11 @@ export function Layout({ children }: LayoutProps) {
   const { user, isAuthenticated, isGuest, isLoading, login, logout } = useAuth();
 
   // Filter nav items based on auth status
-  const visibleNavItems = navItems.filter(
-    (item) => !item.requireAuth || (isAuthenticated && !isGuest)
-  );
+  const visibleNavItems = navItems.filter((item) => {
+    // Hide admin-only items from non-admins
+    if (item.requireAdmin && !user?.isAdmin) return false;
+    return true;
+  });
 
   return (
     <div className="min-h-screen flex flex-col">

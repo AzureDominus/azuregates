@@ -11,15 +11,22 @@ export interface PermissionCheckResult {
 /**
  * Check if a user has permission to perform an action on a gate.
  * Permissions are hierarchical: Location > Area > Gate
+ * Admins bypass all permission checks.
  */
 export async function checkPermission(
   userId: string | null | undefined,
   gate: Gate & { area: { locationId: string } },
-  action: GateAction
+  action: GateAction,
+  isAdmin?: boolean
 ): Promise<PermissionCheckResult> {
   // If no user is authenticated, deny access
   if (!userId) {
     return { allowed: false, reason: 'Not authenticated' };
+  }
+
+  // Admins bypass all permission checks
+  if (isAdmin) {
+    return { allowed: true, reason: 'Admin access' };
   }
 
   // Check for matching permissions (most specific to least specific)

@@ -3,7 +3,7 @@ import { randomBytes, createHash } from 'crypto';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { logger } from '../lib/logger.js';
-import { getCurrentUser, requireAuth, type SessionUser } from './session.js';
+import { getCurrentUser, authPreHandler, adminPreHandler, type SessionUser } from './session.js';
 import { config } from '../config/env.js';
 
 const createInviteSchema = z.object({
@@ -24,17 +24,15 @@ function hashToken(token: string): string {
 }
 
 export async function guestRoutes(app: FastifyInstance) {
-  // Create a new guest invite (magic link)
+  // Create a new guest invite (magic link) - Admin only
   app.post(
     '/invites',
+    { preHandler: adminPreHandler },
     async (
       request: FastifyRequest<{ Body: z.infer<typeof createInviteSchema> }>,
       reply: FastifyReply
     ) => {
-      const user = getCurrentUser(request);
-      if (!user) {
-        return reply.status(401).send({ error: 'Unauthorized' });
-      }
+      const user = getCurrentUser(request)!; // preHandler ensures user exists
 
       const parsed = createInviteSchema.safeParse(request.body);
       if (!parsed.success) {
@@ -106,15 +104,9 @@ export async function guestRoutes(app: FastifyInstance) {
     }
   );
 
-  // List all invites created by the current user
-  app.get('/invites', async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = getCurrentUser(request);
-    if (!user) {
-      return reply.status(401).send({ error: 'Unauthorized' });
-    }
-
+  // List all invites - Admin only (admins see all invites)
+  app.get('/invites', { preHandler: adminPreHandler }, async (request: FastifyRequest, reply: FastifyReply) => {
     const invites = await prisma.invite.findMany({
-      where: { createdById: user.id },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -125,18 +117,18 @@ export async function guestRoutes(app: FastifyInstance) {
         maxUses: true,
         useCount: true,
         createdAt: true,
+        createdBy: {
+          select: { displayName: true, email: true },
+        },
       },
     });
 
     return reply.send(invites);
   });
 
-  // Delete/revoke an invite
-  app.delete('/invites/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const user = getCurrentUser(request);
-    if (!user) {
-      return reply.status(401).send({ error: 'Unauthorized' });
-    }
+  // Delete/revoke an invite - Admin only
+  app.delete('/invites/:id', { preHandler: adminPreHandler }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const user = getCurrentUser(request)!;
 
     const invite = await prisma.invite.findUnique({
       where: { id: request.params.id },
@@ -144,10 +136,6 @@ export async function guestRoutes(app: FastifyInstance) {
 
     if (!invite) {
       return reply.status(404).send({ error: 'Invite not found' });
-    }
-
-    if (invite.createdById !== user.id) {
-      return reply.status(403).send({ error: 'You can only delete your own invites' });
     }
 
     await prisma.invite.delete({ where: { id: invite.id } });

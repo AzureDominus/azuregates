@@ -58,12 +58,19 @@ export interface HealthStatus {
 }
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    ...options?.headers as Record<string, string>,
+  };
+  
+  // Only set Content-Type for requests with a body
+  if (options?.body) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const response = await fetch(`${API_BASE}${url}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
+    credentials: 'include',
+    headers,
   });
 
   if (!response.ok) {
@@ -108,9 +115,19 @@ export const api = {
   },
 
   // Config
-  getConfig: () => fetchJson<unknown>('/config'),
+  getConfig: () => fetchJson<GatesConfig>('/config'),
+  updateConfig: (config: GatesConfig) =>
+    fetchJson<{ success: boolean; config: GatesConfig }>('/config', {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    }),
   reloadConfig: () =>
-    fetchJson<{ success: boolean; config: unknown }>('/config/reload', { method: 'POST' }),
+    fetchJson<{ success: boolean; config: GatesConfig }>('/config/reload', { method: 'POST' }),
+  getConfigHistory: () => fetchJson<string[]>('/config/history'),
+  rollbackConfig: (filename: string) =>
+    fetchJson<{ success: boolean; config: GatesConfig }>(`/config/rollback/${encodeURIComponent(filename)}`, {
+      method: 'POST',
+    }),
 
   // Auth
   getCurrentUser: () => fetchJson<{ authenticated: boolean; user: User | null }>('/auth/me'),
@@ -118,7 +135,7 @@ export const api = {
     const params = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : '';
     window.location.href = `${API_BASE}/auth/login${params}`;
   },
-  logout: () => fetchJson<{ success: boolean }>('/auth/logout', { method: 'POST' }),
+  logout: () => fetchJson<{ success: boolean; logoutUrl?: string }>('/auth/logout', { method: 'POST' }),
 
   // Guest
   getGuestScope: () => fetchJson<GuestScope>('/guest/scope'),
@@ -132,6 +149,18 @@ export const api = {
   getInvites: () => fetchJson<Invite[]>('/guest/invites'),
   deleteInvite: (id: string) => 
     fetchJson<{ success: boolean }>(`/guest/invites/${id}`, { method: 'DELETE' }),
+
+  // Admin
+  getUsers: () => fetchJson<AdminUser[]>('/admin/users'),
+  getUser: (id: string) => fetchJson<AdminUserDetails>(`/admin/users/${id}`),
+  grantPermission: (userId: string, data: GrantPermissionRequest) =>
+    fetchJson<{ success: boolean; permission: UserPermission }>(`/admin/users/${userId}/permissions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  revokePermission: (permissionId: string) =>
+    fetchJson<{ success: boolean }>(`/admin/permissions/${permissionId}`, { method: 'DELETE' }),
+  getScopes: () => fetchJson<ScopesResponse>('/admin/scopes'),
 };
 
 // Additional types
@@ -139,8 +168,87 @@ export interface User {
   id: string;
   email: string;
   displayName: string;
+  isAdmin: boolean;
   isGuest: boolean;
   permissions?: string[];
+}
+
+// Config types (matching backend schema)
+export interface GatesConfig {
+  version: number;
+  settings: GlobalSettings;
+  locations: ConfigLocation[];
+}
+
+export interface GlobalSettings {
+  defaultCooldownMs: number;
+  logLevel: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+  maintenanceMode?: boolean;
+}
+
+export interface ConfigLocation {
+  id: string;
+  name: string;
+  enabled?: boolean;
+  metadata?: Record<string, unknown>;
+  areas?: ConfigArea[];
+}
+
+export interface ConfigArea {
+  id: string;
+  name: string;
+  enabled?: boolean;
+  metadata?: Record<string, unknown>;
+  gates?: ConfigGate[];
+}
+
+export interface ConfigGate {
+  id: string;
+  name: string;
+  enabled?: boolean;
+  driver: 'gpio' | 'webhook';
+  capabilities: ('open' | 'close' | 'stop' | 'toggle' | 'state')[];
+  config: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AdminUser {
+  id: string;
+  externalId: string;
+  email: string | null;
+  displayName: string | null;
+  isAdmin: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count: { permissions: number };
+}
+
+export interface UserPermission {
+  id: string;
+  userId: string;
+  scopeType: 'LOCATION' | 'AREA' | 'GATE';
+  scopeId: string;
+  actions: string[];
+  expiresAt: string | null;
+  createdAt: string;
+  scopeName?: string;
+}
+
+export interface AdminUserDetails extends Omit<AdminUser, '_count'> {
+  permissions: UserPermission[];
+}
+
+export interface GrantPermissionRequest {
+  scopeType: 'LOCATION' | 'AREA' | 'GATE';
+  scopeId: string;
+  actions: string[];
+  expiresAt?: string;
+}
+
+export interface ScopesResponse {
+  locations: { id: string; name: string }[];
+  areas: { id: string; name: string; locationId: string }[];
+  gates: { id: string; name: string; areaId: string; capabilities: string[] }[];
 }
 
 export interface GuestScope {

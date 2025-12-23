@@ -1,8 +1,12 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { loadConfig, getConfig, saveConfig, getConfigHistory, restoreConfig } from '../config/loader.js';
 import type { GatesConfig } from '../config/schema.js';
+import { adminPreHandler } from '../auth/session.js';
 
 export async function configRoutes(app: FastifyInstance) {
+  // All config routes require admin access
+  app.addHook('preHandler', adminPreHandler);
+
   // Get current configuration
   app.get('/', async (_request: FastifyRequest, reply: FastifyReply) => {
     const config = getConfig();

@@ -60,6 +60,7 @@ export async function oidcRoutes(app: FastifyInstance) {
         id: user.id,
         email: user.email,
         displayName: user.displayName,
+        isAdmin: user.isAdmin ?? false,
         isGuest: user.isGuest ?? false,
         permissions: user.permissions ?? [],
       },
@@ -86,7 +87,7 @@ export async function oidcRoutes(app: FastifyInstance) {
       const redirectUri = `${config.baseUrl}/api/auth/callback`;
       const authUrl = openidClient.buildAuthorizationUrl(oidc, {
         redirect_uri: redirectUri,
-        scope: 'openid profile email',
+        scope: 'openid profile email groups',
         state,
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
@@ -135,6 +136,12 @@ export async function oidcRoutes(app: FastifyInstance) {
                           email.split('@')[0] || 
                           'Unknown User';
 
+      // Check if user is in admin group from Authentik
+      const groups = (claims.groups as string[]) || [];
+      const isAdmin = groups.includes(config.authentik.adminGroup);
+      
+      logger.debug({ groups, adminGroup: config.authentik.adminGroup, isAdmin }, 'Checking admin group membership');
+
       // Upsert user in database
       const user = await prisma.user.upsert({
         where: { externalId },
@@ -142,14 +149,16 @@ export async function oidcRoutes(app: FastifyInstance) {
           externalId,
           email,
           displayName,
+          isAdmin,
         },
         update: {
           email,
           displayName,
+          isAdmin, // Update admin status on each login
         },
       });
 
-      logger.info({ userId: user.id, externalId }, 'User authenticated successfully');
+      logger.info({ userId: user.id, externalId, isAdmin }, 'User authenticated successfully');
 
       // Set session
       const session = request.session as any;
@@ -158,7 +167,11 @@ export async function oidcRoutes(app: FastifyInstance) {
         externalId: user.externalId,
         email: user.email || '',
         displayName: user.displayName || '',
+        isAdmin: user.isAdmin,
       };
+      
+      // Store id_token for logout
+      session.idToken = tokens.id_token;
 
       await request.session.save();
 
@@ -173,7 +186,7 @@ export async function oidcRoutes(app: FastifyInstance) {
     }
   });
 
-  // Logout
+  // Logout - clears local session and fully logs out of Authentik
   app.post('/logout', async (request: FastifyRequest, reply: FastifyReply) => {
     const user = getCurrentUser(request);
     
@@ -181,12 +194,38 @@ export async function oidcRoutes(app: FastifyInstance) {
       logger.info({ userId: user.id }, 'User logging out');
     }
 
-    (request.session as any).destroy();
+    const session = request.session as any;
+    const idToken = session.idToken;
+    session.user = null;
+    session.idToken = null;
+    session.destroy();
     
-    return reply.send({ success: true, message: 'Logged out successfully' });
+    // Use OIDC end-session endpoint with id_token_hint for proper SSO logout
+    try {
+      const oidc = await getOidcConfig();
+      let logoutUrl = openidClient.buildEndSessionUrl(oidc, {
+        id_token_hint: idToken,
+        post_logout_redirect_uri: config.baseUrl,
+      });
+      
+      // Replace internal Authentik URL with external URL for browser access
+      const externalLogoutUrl = logoutUrl.href.replace(config.authentik.url, config.authentik.externalUrl);
+      
+      return reply.send({ 
+        success: true, 
+        message: 'Logged out successfully',
+        logoutUrl: externalLogoutUrl,
+      });
+    } catch (err) {
+      logger.warn({ err }, 'Failed to build end session URL, redirecting to base URL');
+      return reply.send({ 
+        success: true, 
+        message: 'Logged out successfully',
+      });
+    }
   });
 
-  // Get logout (for redirect-based logout)
+  // Get logout (for redirect-based logout with SSO logout)
   app.get('/logout', async (request: FastifyRequest, reply: FastifyReply) => {
     const user = getCurrentUser(request);
     
@@ -194,9 +233,27 @@ export async function oidcRoutes(app: FastifyInstance) {
       logger.info({ userId: user.id }, 'User logging out');
     }
 
-    (request.session as any).destroy();
+    const session = request.session as any;
+    const idToken = session.idToken;
+    session.user = null;
+    session.idToken = null;
+    session.destroy();
     
-    // Redirect to home
-    return reply.redirect('/');
+    // Use OIDC end-session endpoint
+    try {
+      const oidc = await getOidcConfig();
+      let logoutUrl = openidClient.buildEndSessionUrl(oidc, {
+        id_token_hint: idToken,
+        post_logout_redirect_uri: config.baseUrl,
+      });
+      
+      // Replace internal Authentik URL with external URL for browser access
+      const externalLogoutUrl = logoutUrl.href.replace(config.authentik.url, config.authentik.externalUrl);
+      
+      return reply.redirect(externalLogoutUrl);
+    } catch (err) {
+      logger.warn({ err }, 'Failed to build end session URL, redirecting to base URL');
+      return reply.redirect(config.baseUrl);
+    }
   });
 }

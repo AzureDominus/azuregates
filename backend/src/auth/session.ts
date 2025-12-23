@@ -10,6 +10,7 @@ export interface SessionUser {
   externalId: string;
   email: string;
   displayName: string;
+  isAdmin?: boolean;
   isGuest?: boolean;
   guestExpiry?: Date;
   permissions?: string[];
@@ -76,7 +77,34 @@ export function isAuthenticated(request: FastifyRequest): boolean {
   return !!(request.session as any)?.user;
 }
 
-// Auth guard decorator for routes
+// Fastify preHandler for requiring authentication
+export async function authPreHandler(request: FastifyRequest, reply: FastifyReply) {
+  if (!isAuthenticated(request)) {
+    return reply.status(401).send({ error: 'Unauthorized', message: 'Please log in' });
+  }
+
+  // Check if guest token has expired
+  const user = getCurrentUser(request);
+  if (user?.isGuest && user.guestExpiry) {
+    if (new Date(user.guestExpiry) < new Date()) {
+      (request.session as any).destroy();
+      return reply.status(401).send({ error: 'Session expired', message: 'Guest access has expired' });
+    }
+  }
+}
+
+// Fastify preHandler for requiring admin access
+export async function adminPreHandler(request: FastifyRequest, reply: FastifyReply) {
+  await authPreHandler(request, reply);
+  if (reply.sent) return; // Auth already failed
+  
+  const user = getCurrentUser(request);
+  if (!user?.isAdmin) {
+    return reply.status(403).send({ error: 'Forbidden', message: 'Admin access required' });
+  }
+}
+
+// Auth guard decorator for routes (legacy)
 export function requireAuth(
   handler: (request: FastifyRequest, reply: FastifyReply) => Promise<any>
 ) {

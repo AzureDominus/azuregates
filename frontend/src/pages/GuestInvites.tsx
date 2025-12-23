@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, AlertCircle, Link2, Trash2, Plus, Check } from 'lucide-react';
-import { api, type CreateInviteRequest, type Invite } from '../lib/api';
+import { api, type CreateInviteRequest } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 export function GuestInvites() {

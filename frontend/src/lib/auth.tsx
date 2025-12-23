@@ -26,9 +26,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logoutMutation = useMutation({
     mutationFn: api.logout,
-    onSuccess: () => {
-      queryClient.setQueryData(['auth', 'me'], { authenticated: false, user: null });
-      queryClient.invalidateQueries({ queryKey: ['auth'] });
+    onSuccess: (data) => {
+      // Redirect to Authentik logout FIRST before updating state
+      // This prevents useRequireAuth from triggering login redirect
+      if (data.logoutUrl) {
+        window.location.href = data.logoutUrl;
+      } else {
+        queryClient.setQueryData(['auth', 'me'], { authenticated: false, user: null });
+        queryClient.invalidateQueries({ queryKey: ['auth'] });
+        window.location.href = '/';
+      }
     },
   });
 

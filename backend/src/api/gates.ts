@@ -4,13 +4,16 @@ import { prisma } from '../lib/prisma.js';
 import { executeGateCommand } from '../drivers/executor.js';
 import { checkPermission } from '../permissions/checker.js';
 import { logAudit } from '../audit/logger.js';
-import { getCurrentUser, isAuthenticated } from '../auth/session.js';
+import { getCurrentUser, authPreHandler } from '../auth/session.js';
 
 const commandSchema = z.object({
   action: z.enum(['open', 'close', 'stop', 'toggle']),
 });
 
 export async function gatesRoutes(app: FastifyInstance) {
+  // All routes in this module require authentication
+  app.addHook('preHandler', authPreHandler);
+
   // List all locations
   app.get('/locations', async (request: FastifyRequest, reply: FastifyReply) => {
     const locations = await prisma.location.findMany({
@@ -207,8 +210,25 @@ export async function gatesRoutes(app: FastifyInstance) {
       const user = getCurrentUser(request);
       const userId = user?.id;
       
-      // For authenticated users (including guests), check permissions
-      if (user) {
+      // Require authentication
+      if (!user) {
+        await logAudit({
+          gateId,
+          action,
+          result: 'denied',
+          errorMessage: 'Not authenticated',
+          clientIp,
+          userAgent,
+          latencyMs: Date.now() - startTime,
+        });
+        return reply.status(401).send({ 
+          error: 'Unauthorized',
+          message: 'Authentication required',
+        });
+      }
+
+      // Admins bypass permission checks
+      if (!user.isAdmin) {
         // Guests have limited permissions based on their invite scope
         if (user.isGuest) {
           // Check if the action is in their allowed permissions
@@ -230,7 +250,7 @@ export async function gatesRoutes(app: FastifyInstance) {
           }
         } else {
           // Regular users - check database permissions
-          const permResult = await checkPermission(userId!, gate, action);
+          const permResult = await checkPermission(userId!, gate, action, user.isAdmin);
           if (!permResult.allowed) {
             await logAudit({
               userId,
@@ -249,8 +269,6 @@ export async function gatesRoutes(app: FastifyInstance) {
           }
         }
       }
-      // Note: If no user is authenticated, we allow the request for now (dev mode)
-      // In production, you should require authentication
 
       // Execute command via driver
       try {

@@ -3,14 +3,18 @@ import { Link } from 'react-router-dom';
 import { DoorOpen, DoorClosed, Loader2, AlertCircle } from 'lucide-react';
 import { api } from '../lib/api';
 import { GateCard } from '../components/GateCard';
+import { useRequireAuth } from '../lib/auth';
 
 export function Dashboard() {
+  const { isReady } = useRequireAuth();
+  
   const { data: locations, isLoading, error } = useQuery({
     queryKey: ['locations'],
     queryFn: api.getLocations,
+    enabled: isReady, // Only fetch when authenticated
   });
 
-  if (isLoading) {
+  if (!isReady || isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-blue-400" />

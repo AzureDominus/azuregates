@@ -31,14 +31,16 @@ services:
       - SESSION_SECRET=dev-session-secret-change-in-production
       - AUTHENTIK_URL=http://authentik:9000
       - AUTHENTIK_EXTERNAL_URL=http://localhost:9000
-      - AUTHENTIK_CLIENT_ID=gates-dev
-      - AUTHENTIK_CLIENT_SECRET=dev-client-secret
+      - AUTHENTIK_CLIENT_ID=azure-gates
+      - AUTHENTIK_CLIENT_SECRET=nUHDL6RUy6qIvL8Bhwx4cNTusRj2zvgDgqWoIWX04nMxdWr3TpuVGlRicaRXK55IxtS7UPSSGMecF4d7M1ZIedQoyPKJ0Qrf9ABlIysrEDNptWtF6PwL7mPuDvRnEtYk
       - AUTHENTIK_SLUG=azure-gates
+      - AUTHENTIK_ADMIN_GROUP=gates-admin
       - LOG_LEVEL=debug
       - MOCK_SERVER_URL=http://mock-server:4000
       - BASE_URL=http://localhost:3000
     volumes:
       - ./backend/src:/app/src
+      - ./backend/prisma:/app/prisma
       - ./config:/app/config
 
   # Mock Webhook Server for development (simulates gate controllers)

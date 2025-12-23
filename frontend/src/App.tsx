@@ -7,6 +7,7 @@ import { AuditLogs } from './pages/AuditLogs';
 import { Login } from './pages/Login';
 import { GuestAccess } from './pages/GuestAccess';
 import { GuestInvites } from './pages/GuestInvites';
+import { Admin } from './pages/Admin';
 import { AuthProvider } from './lib/auth';
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
           <Route path="/invites" element={<GuestInvites />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/audit" element={<AuditLogs />} />
+          <Route path="/admin" element={<Admin />} />
         </Route>
       </Routes>
     </AuthProvider>
