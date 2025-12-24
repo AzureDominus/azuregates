@@ -164,7 +164,6 @@ export class GpioDriver extends BaseDriver {
             { gateId: gate.id, pin: activeOp.pin, inactiveValue },
             'Released active pin to inactive state'
           );
-          );
         } catch (err) {
           logger.warn({ gateId: gate.id, pin: activeOp.pin, err }, 'Failed to release active pin');
         }
