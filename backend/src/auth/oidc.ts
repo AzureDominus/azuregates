@@ -15,11 +15,16 @@ async function getOidcConfig(): Promise<openidClient.Configuration> {
 
   const issuerUrl = new URL(`${config.authentik.url}/application/o/${config.authentik.slug}/`);
 
+  // Allow insecure requests for internal Docker networking (HTTP between containers)
+  // or in development mode
+  const isInternalHttp = issuerUrl.protocol === 'http:';
+  const allowInsecure = config.nodeEnv === 'development' || isInternalHttp;
+
   try {
     oidcConfig = await openidClient.discovery(issuerUrl, config.authentik.clientId, {
       client_secret: config.authentik.clientSecret,
     }, undefined, {
-      execute: config.nodeEnv === 'development' ? [openidClient.allowInsecureRequests] : undefined,
+      execute: allowInsecure ? [openidClient.allowInsecureRequests] : undefined,
     });
     logger.info({ issuer: issuerUrl.toString() }, 'OIDC discovery completed');
     return oidcConfig;
