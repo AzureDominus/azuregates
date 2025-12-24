@@ -46,11 +46,11 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://gates:${POSTGRES_PASSWORD}@postgres:5432/gates
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=${DATABASE_URL:-postgresql://gates:${POSTGRES_PASSWORD}@postgres:5432/gates}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - SESSION_SECRET=${SESSION_SECRET}
       # Authentik OIDC Configuration
-      - AUTHENTIK_URL=http://authentik:9000
+      - AUTHENTIK_URL=${AUTHENTIK_URL:-https://authentik:9443}
       - AUTHENTIK_EXTERNAL_URL=${AUTHENTIK_EXTERNAL_URL:-http://gates.local/auth}
       - AUTHENTIK_CLIENT_ID=${AUTHENTIK_CLIENT_ID}
       - AUTHENTIK_CLIENT_SECRET=${AUTHENTIK_CLIENT_SECRET}
@@ -60,7 +60,7 @@ services:
       - BASE_URL=${BASE_URL:-http://gates.local}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       # GPIO Configuration (Raspberry Pi)
-      - GPIO_AVAILABLE=true
+      - GPIO_AVAILABLE=${GPIO_AVAILABLE:-true}
       # Config file settings
       - CONFIG_PATH=/app/config
       - GATES_CONFIG_FILE=${GATES_CONFIG_FILE:-gates.prod.yaml}
@@ -86,9 +86,9 @@ services:
     container_name: gates-postgres
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=gates
+      - POSTGRES_USER=${POSTGRES_USER:-gates}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=gates
+      - POSTGRES_DB=${POSTGRES_DB:-gates}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -128,8 +128,8 @@ services:
       - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
       - AUTHENTIK_REDIS__HOST=redis
       - AUTHENTIK_POSTGRESQL__HOST=postgres
-      - AUTHENTIK_POSTGRESQL__USER=gates
-      - AUTHENTIK_POSTGRESQL__NAME=authentik
+      - AUTHENTIK_POSTGRESQL__USER=${POSTGRES_USER:-gates}
+      - AUTHENTIK_POSTGRESQL__NAME=${AUTHENTIK_DB:-authentik}
       - AUTHENTIK_POSTGRESQL__PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - authentik_media:/media
@@ -153,8 +153,8 @@ services:
       - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
       - AUTHENTIK_REDIS__HOST=redis
       - AUTHENTIK_POSTGRESQL__HOST=postgres
-      - AUTHENTIK_POSTGRESQL__USER=gates
-      - AUTHENTIK_POSTGRESQL__NAME=authentik
+      - AUTHENTIK_POSTGRESQL__USER=${POSTGRES_USER:-gates}
+      - AUTHENTIK_POSTGRESQL__NAME=${AUTHENTIK_DB:-authentik}
       - AUTHENTIK_POSTGRESQL__PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - authentik_media:/media
