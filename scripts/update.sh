@@ -34,10 +34,31 @@ check_health() {
 
 backup_current_state() {
     log "Creating backup of current container state..."
+    mkdir -p "${PROJECT_DIR}/backup"
     docker compose -f "$COMPOSE_FILE" config > "${PROJECT_DIR}/backup/docker-compose-backup.yml" 2>/dev/null || true
     
     # Save current image versions
     docker compose -f "$COMPOSE_FILE" images --format json > "${PROJECT_DIR}/backup/current-images.json" 2>/dev/null || true
+    
+    # Backup current config
+    if [[ -f "${PROJECT_DIR}/config/gates.prod.yaml" ]]; then
+        cp "${PROJECT_DIR}/config/gates.prod.yaml" "${PROJECT_DIR}/backup/gates.prod.yaml.bak" || true
+    fi
+}
+
+pull_git_updates() {
+    log "Checking for git updates..."
+    cd "$PROJECT_DIR"
+    
+    # Stash any local changes
+    git stash --quiet 2>/dev/null || true
+    
+    # Pull latest changes
+    if git pull --ff-only origin main 2>/dev/null || git pull --ff-only origin master 2>/dev/null; then
+        log "Git repository updated"
+    else
+        log "No git updates or unable to pull (may be on a release tag)"
+    fi
 }
 
 pull_updates() {
@@ -78,6 +99,7 @@ main() {
     
     # Ensure backup directory exists
     mkdir -p "${PROJECT_DIR}/backup"
+    mkdir -p "${PROJECT_DIR}/logs"
     
     # Backup current state
     backup_current_state
@@ -86,6 +108,9 @@ main() {
     if ! check_health; then
         log "WARNING: System unhealthy before update, proceeding anyway..."
     fi
+    
+    # Pull git updates (config, scripts, etc.)
+    pull_git_updates
     
     # Pull new images
     pull_updates

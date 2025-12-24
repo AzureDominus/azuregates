@@ -10,11 +10,6 @@ import { getCurrentUser, type SessionUser } from './session.js';
 let oidcConfig: openidClient.Configuration | null = null;
 let codeVerifier: string | null = null;
 
-// Allow HTTP in development (openid-client requires HTTPS by default)
-const execute: openidClient.CustomFetch | undefined = config.nodeEnv === 'development' 
-  ? (...args) => openidClient.customFetch(...args)
-  : undefined;
-
 async function getOidcConfig(): Promise<openidClient.Configuration> {
   if (oidcConfig) return oidcConfig;
 

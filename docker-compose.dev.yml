@@ -38,6 +38,9 @@ services:
       - LOG_LEVEL=debug
       - MOCK_SERVER_URL=http://mock-server:4000
       - BASE_URL=http://localhost:3000
+      - CONFIG_PATH=/app/config
+      - GATES_CONFIG_FILE=gates.yaml
+      - GPIO_AVAILABLE=false
     volumes:
       - ./backend/src:/app/src
       - ./backend/prisma:/app/prisma

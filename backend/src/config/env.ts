@@ -15,8 +15,10 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   CORS_ORIGIN: z.string().optional(),
   MOCK_SERVER_URL: z.string().url().optional(),
-  CONFIG_PATH: z.string().default('/app/config/gates.yaml'),
+  CONFIG_PATH: z.string().default('/app/config'),
+  GATES_CONFIG_FILE: z.string().default('gates.yaml'),
   BASE_URL: z.string().url().default('http://localhost:3000'),
+  GPIO_AVAILABLE: z.string().transform((v) => v === 'true').default('false'),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -25,6 +27,11 @@ if (!parsed.success) {
   console.error('❌ Invalid environment variables:', parsed.error.flatten().fieldErrors);
   process.exit(1);
 }
+
+// Build the full config file path
+const configFilePath = parsed.data.CONFIG_PATH.endsWith('.yaml') || parsed.data.CONFIG_PATH.endsWith('.yml')
+  ? parsed.data.CONFIG_PATH  // Legacy: full path specified
+  : `${parsed.data.CONFIG_PATH}/${parsed.data.GATES_CONFIG_FILE}`;  // New: directory + filename
 
 export const config = {
   nodeEnv: parsed.data.NODE_ENV,
@@ -43,8 +50,12 @@ export const config = {
   logLevel: parsed.data.LOG_LEVEL,
   corsOrigin: parsed.data.CORS_ORIGIN,
   mockServerUrl: parsed.data.MOCK_SERVER_URL,
-  configPath: parsed.data.CONFIG_PATH,
+  configPath: configFilePath,
+  configDir: parsed.data.CONFIG_PATH.endsWith('.yaml') || parsed.data.CONFIG_PATH.endsWith('.yml')
+    ? parsed.data.CONFIG_PATH.substring(0, parsed.data.CONFIG_PATH.lastIndexOf('/'))
+    : parsed.data.CONFIG_PATH,
   baseUrl: parsed.data.BASE_URL,
+  gpioAvailable: parsed.data.GPIO_AVAILABLE,
 };
 
 export type Config = typeof config;

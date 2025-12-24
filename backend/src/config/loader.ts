@@ -7,9 +7,10 @@ import { config } from './env.js';
 import { logger } from '../lib/logger.js';
 import { prisma } from '../lib/prisma.js';
 import type { GatesConfig } from './schema.js';
+import type { Prisma } from '@prisma/client';
 
-const ajv = new Ajv({ allErrors: true, strict: false });
-addFormats(ajv);
+const ajv = new (Ajv as unknown as typeof Ajv.default)({ allErrors: true, strict: false });
+(addFormats as unknown as typeof addFormats.default)(ajv);
 
 let configSchema: object | null = null;
 let currentConfig: GatesConfig | null = null;
@@ -17,10 +18,10 @@ let currentConfig: GatesConfig | null = null;
 async function loadSchema(): Promise<object> {
   if (configSchema) return configSchema;
   
-  const schemaPath = path.join(path.dirname(config.configPath), 'gates.schema.json');
+  const schemaPath = path.join(config.configDir, 'gates.schema.json');
   const schemaContent = await fs.readFile(schemaPath, 'utf-8');
   configSchema = JSON.parse(schemaContent);
-  return configSchema;
+  return configSchema!;
 }
 
 export async function loadConfig(): Promise<GatesConfig> {
@@ -33,7 +34,7 @@ export async function loadConfig(): Promise<GatesConfig> {
   const valid = validate(parsed);
   
   if (!valid) {
-    const errors = validate.errors?.map((e) => `${e.instancePath} ${e.message}`).join(', ');
+    const errors = validate.errors?.map((e: { instancePath: string; message?: string }) => `${e.instancePath} ${e.message}`).join(', ');
     throw new Error(`Config validation failed: ${errors}`);
   }
   
@@ -58,12 +59,12 @@ async function syncConfigToDatabase(gatesConfig: GatesConfig): Promise<void> {
         id: location.id,
         name: location.name,
         enabled: location.enabled ?? true,
-        metadata: location.metadata ?? {},
+        metadata: (location.metadata ?? {}) as Prisma.InputJsonValue,
       },
       update: {
         name: location.name,
         enabled: location.enabled ?? true,
-        metadata: location.metadata ?? {},
+        metadata: (location.metadata ?? {}) as Prisma.InputJsonValue,
       },
     });
     
@@ -75,13 +76,13 @@ async function syncConfigToDatabase(gatesConfig: GatesConfig): Promise<void> {
           locationId: location.id,
           name: area.name,
           enabled: area.enabled ?? true,
-          metadata: area.metadata ?? {},
+          metadata: (area.metadata ?? {}) as Prisma.InputJsonValue,
         },
         update: {
           locationId: location.id,
           name: area.name,
           enabled: area.enabled ?? true,
-          metadata: area.metadata ?? {},
+          metadata: (area.metadata ?? {}) as Prisma.InputJsonValue,
         },
       });
       
@@ -94,18 +95,18 @@ async function syncConfigToDatabase(gatesConfig: GatesConfig): Promise<void> {
             name: gate.name,
             enabled: gate.enabled ?? true,
             driverType: gate.driver,
-            driverConfig: gate.config ?? {},
+            driverConfig: (gate.config ?? {}) as unknown as Prisma.InputJsonValue,
             capabilities: gate.capabilities,
-            metadata: gate.metadata ?? {},
+            metadata: (gate.metadata ?? {}) as unknown as Prisma.InputJsonValue,
           },
           update: {
             areaId: area.id,
             name: gate.name,
             enabled: gate.enabled ?? true,
             driverType: gate.driver,
-            driverConfig: gate.config ?? {},
+            driverConfig: (gate.config ?? {}) as unknown as Prisma.InputJsonValue,
             capabilities: gate.capabilities,
-            metadata: gate.metadata ?? {},
+            metadata: (gate.metadata ?? {}) as unknown as Prisma.InputJsonValue,
           },
         });
       }
@@ -121,7 +122,7 @@ export async function saveConfig(newConfig: GatesConfig): Promise<void> {
   const valid = validate(newConfig);
   
   if (!valid) {
-    const errors = validate.errors?.map((e) => `${e.instancePath} ${e.message}`).join(', ');
+    const errors = validate.errors?.map((e: { instancePath: string; message?: string }) => `${e.instancePath} ${e.message}`).join(', ');
     throw new Error(`Config validation failed: ${errors}`);
   }
   

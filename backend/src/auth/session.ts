@@ -40,11 +40,12 @@ export async function setupSession(app: FastifyInstance): Promise<void> {
   await redisClient.connect();
   logger.info('Redis session store connected');
 
-  // Import connect-redis (named export)
-  const { RedisStore } = await import('connect-redis');
+  // Import connect-redis and create store
+  const connectRedis = await import('connect-redis');
+  const RedisStore = connectRedis.default;
   
-  // Create Redis store
-  const redisStore = new RedisStore({
+  // Create Redis store with the redis client
+  const redisStore = new (RedisStore as any)({
     client: redisClient,
     prefix: 'gates:session:',
     ttl: 86400, // 24 hours
@@ -53,7 +54,7 @@ export async function setupSession(app: FastifyInstance): Promise<void> {
   // Register session plugin
   await app.register(session, {
     secret: config.sessionSecret,
-    store: redisStore as any,
+    store: redisStore,
     cookie: {
       secure: config.nodeEnv === 'production',
       httpOnly: true,

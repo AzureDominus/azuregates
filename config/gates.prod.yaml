@@ -1,0 +1,126 @@
+# Gates Configuration - Production (Raspberry Pi)
+# This is the source of truth for all gate definitions
+# Changes here will be synced to the database on reload
+#
+# GPIO Pin Assignments:
+#   North Gate: GPIO 2 (open), GPIO 3 (close)
+#   South Gate: GPIO 14 (open), GPIO 15 (close)
+#   Driveway Light: GPIO 17 (toggle)
+#   Entrance Gate: GPIO 17 (toggle) - DISABLED
+#
+# SAFETY NOTES:
+#   - activeHigh: false means LOW activates the relay (common for relay modules)
+#   - The gate moves while the pin is held LOW
+#   - Gate controller has built-in limit switches (stops at end of travel)
+#   - holdDurationMs: Maximum time to hold pin LOW for open/close operations
+#   - NEVER send open and close simultaneously - this causes electrical issues
+#   - The driver enforces mutual exclusion between open/close commands
+
+version: 1
+
+settings:
+  # Cooldown between commands on the same gate (prevents rapid toggling)
+  defaultCooldownMs: 3000
+  logLevel: info
+  maintenanceMode: false
+
+locations:
+  - id: home
+    name: Home
+    enabled: true
+    metadata:
+      description: "Primary residence gate control system"
+    areas:
+      - id: perimeter
+        name: Perimeter Gates
+        enabled: true
+        gates:
+          # North Gate - Main driveway entrance
+          # GPIO 2 = open, GPIO 3 = close
+          # LOW activates relay (closes circuit), HIGH deactivates (opens circuit)
+          # Gate moves while relay is closed, limit switches stop motor at end of travel
+          - id: north-gate
+            name: North Gate
+            enabled: true
+            driver: gpio
+            capabilities:
+              - open
+              - close
+            config:
+              openPin: 2
+              closePin: 3
+              # pulseDurationMs is for toggle operations, not used for open/close when holdDurationMs is set
+              pulseDurationMs: 500
+              # Maximum gate travel time - hold pin LOW for this duration
+              # Gate's limit switches will stop motor when fully open/closed
+              # Set to max travel time (e.g., 45 seconds for a large gate)
+              holdDurationMs: 45000
+              # LOW = relay active (gate moves), HIGH = relay inactive (gate stops)
+              activeHigh: false
+            metadata:
+              notes: "Main north entrance gate"
+              physicalLocation: "Front of property, north side"
+
+          # South Gate - Secondary entrance
+          # GPIO 14 = open, GPIO 15 = close
+          # Same operation as North Gate
+          - id: south-gate
+            name: South Gate
+            enabled: true
+            driver: gpio
+            capabilities:
+              - open
+              - close
+            config:
+              openPin: 14
+              closePin: 15
+              pulseDurationMs: 500
+              # Max travel time for south gate
+              holdDurationMs: 45000
+              activeHigh: false
+            metadata:
+              notes: "Secondary south entrance gate"
+              physicalLocation: "Rear of property, south side"
+
+      - id: utilities
+        name: Utilities
+        enabled: true
+        gates:
+          # Driveway Light - Toggle operation
+          # GPIO 17 = toggle
+          # Short pulse to toggle on/off
+          - id: driveway-light
+            name: Driveway Light
+            enabled: true
+            driver: gpio
+            capabilities:
+              - toggle
+            config:
+              togglePin: 17
+              # Short pulse duration for toggle operation
+              pulseDurationMs: 500
+              activeHigh: false
+            metadata:
+              notes: "Driveway area lighting control"
+              type: "lighting"
+
+      - id: entrance
+        name: Entrance
+        enabled: true
+        gates:
+          # Entrance Gate - Currently DISABLED
+          # GPIO 17 = toggle (shared pin with driveway light when enabled)
+          # NOTE: This gate is disabled - commands will be rejected
+          - id: entrance-gate
+            name: Entrance Gate
+            enabled: false
+            driver: gpio
+            capabilities:
+              - toggle
+            config:
+              togglePin: 17
+              pulseDurationMs: 500
+              activeHigh: false
+            metadata:
+              notes: "Currently under maintenance - DISABLED"
+              disabledReason: "Pending hardware installation"

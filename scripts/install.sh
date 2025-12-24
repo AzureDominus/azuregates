@@ -5,7 +5,7 @@
 set -e
 
 INSTALL_DIR="/opt/gates"
-REPO_URL="https://github.com/yourusername/gates.git"  # Replace with your repo
+REPO_URL="https://github.com/AzureDominus/azuregates.git"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -109,6 +109,9 @@ setup_environment() {
     
     cd "$INSTALL_DIR"
     
+    # Create necessary directories
+    mkdir -p backup logs config/history
+    
     if [[ ! -f ".env" ]]; then
         log_info "Creating .env file from template..."
         cp .env.example .env
@@ -116,15 +119,19 @@ setup_environment() {
         # Generate random secrets
         POSTGRES_PASSWORD=$(openssl rand -hex 24)
         SESSION_SECRET=$(openssl rand -hex 32)
-        AUTHENTIK_SECRET_KEY=$(openssl rand -hex 32)
+        AUTHENTIK_SECRET_KEY=$(openssl rand -base64 60 | tr -d '\n')
         
         # Update .env with generated values
         sed -i "s/your-secure-password-here/$POSTGRES_PASSWORD/" .env
         sed -i "s/your-session-secret-min-32-chars/$SESSION_SECRET/" .env
         sed -i "s/your-authentik-secret-key-min-50-chars/$AUTHENTIK_SECRET_KEY/" .env
         
+        # Set production config file
+        sed -i "s/GATES_CONFIG_FILE=.*/GATES_CONFIG_FILE=gates.prod.yaml/" .env
+        
         log_warn "Generated random secrets in .env file"
-        log_warn "Please review and update BASE_URL and other settings as needed"
+        log_warn "You MUST update AUTHENTIK_CLIENT_ID and AUTHENTIK_CLIENT_SECRET after Authentik setup"
+        log_warn "Please review BASE_URL and other settings as needed"
     else
         log_info ".env file already exists, skipping..."
     fi
@@ -140,8 +147,11 @@ setup_systemd() {
     # Update paths in service file
     sed -i "s|/opt/gates|$INSTALL_DIR|g" /etc/systemd/system/gates-update.service
     
-    # Make update script executable
-    chmod +x "$INSTALL_DIR/scripts/update.sh"
+    # Make all scripts executable
+    chmod +x "$INSTALL_DIR/scripts/"*.sh
+    
+    # Create symlink for gates-ctl in /usr/local/bin
+    ln -sf "$INSTALL_DIR/scripts/gates-ctl.sh" /usr/local/bin/gates-ctl
     
     # Reload systemd
     systemctl daemon-reload
@@ -199,22 +209,32 @@ print_next_steps() {
     echo "   - Local: http://gates.local or http://$(hostname -I | awk '{print $1}')"
     echo ""
     echo "2. Complete Authentik setup:"
-    echo "   - Go to http://gates.local:9000/if/flow/initial-setup/"
+    echo "   - Go to http://gates.local/auth/if/flow/initial-setup/"
     echo "   - Create admin account"
-    echo "   - Create OAuth2 provider for 'gates'"
+    echo "   - Create OAuth2 provider named 'azure-gates'"
+    echo "   - Create application with slug 'azure-gates'"
+    echo "   - Copy client ID and secret to .env file"
+    echo "   - See docs/AUTHENTIK_SETUP.md for detailed instructions"
     echo ""
     echo "3. Update configuration:"
     echo "   - Edit $INSTALL_DIR/.env for environment settings"
-    echo "   - Edit $INSTALL_DIR/config/gates.yaml for gate configuration"
+    echo "   - Edit $INSTALL_DIR/config/gates.prod.yaml for GPIO pin assignments"
     echo ""
-    echo "4. For remote access:"
+    echo "4. After updating .env with Authentik credentials:"
+    echo "   - Restart: docker compose -f docker-compose.prod.yml restart backend"
+    echo ""
+    echo "5. For remote access (optional):"
     echo "   - Set up Cloudflare Tunnel and add CLOUDFLARE_TUNNEL_TOKEN to .env"
     echo "   - Run: docker compose -f docker-compose.prod.yml --profile remote-access up -d"
     echo ""
     echo "Useful commands:"
+    echo "   - Control:  gates-ctl <command>  (start, stop, status, logs, health, etc.)"
     echo "   - View logs: docker compose -f docker-compose.prod.yml logs -f"
     echo "   - Restart: docker compose -f docker-compose.prod.yml restart"
     echo "   - Stop: docker compose -f docker-compose.prod.yml down"
+    echo "   - Update: $INSTALL_DIR/scripts/update.sh"
+    echo ""
+    echo "Run 'gates-ctl' without arguments to see all available commands."
     echo ""
 }
 

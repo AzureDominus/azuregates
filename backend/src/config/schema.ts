@@ -49,6 +49,8 @@ export interface GpioDriverConfig {
   stopPin?: number;
   togglePin?: number;
   pulseDurationMs: number;
+  /** Duration to hold the pin active for open/close operations (ms). Used for gates that move while pin is held. */
+  holdDurationMs?: number;
   activeHigh: boolean;
 }
 

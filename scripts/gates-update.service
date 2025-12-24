@@ -1,7 +1,8 @@
 [Unit]
 Description=Gates Application Auto-Update Service
-After=docker.service
+After=docker.service network-online.target
 Requires=docker.service
+Wants=network-online.target
 
 [Service]
 Type=oneshot
@@ -10,6 +11,9 @@ WorkingDirectory=/opt/gates
 User=root
 StandardOutput=journal
 StandardError=journal
+
+# Timeout for the update process (10 minutes should be plenty)
+TimeoutStartSec=600
 
 # Environment file for any needed variables
 EnvironmentFile=-/opt/gates/.env

@@ -150,9 +150,72 @@ config:
   openPin: 17
   closePin: 27
   stopPin: 22
-  pulseDurationMs: 500
-  activeHigh: false
+  pulseDurationMs: 500      # Duration for toggle/pulse operations
+  holdDurationMs: 45000     # Duration to hold pin for open/close (gate travel time)
+  activeHigh: false         # LOW = relay active (common for relay modules)
 ```
+
+**Safety Features:**
+- Mutual exclusion: Open and close commands cannot run simultaneously on the same gate
+- Mutex locks: Operations are serialized per-gate to prevent race conditions
+- Cooldown: Configurable delay between commands
+
+## Production Deployment (Raspberry Pi)
+
+### 1. Prepare the Raspberry Pi
+
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+
+# Enable GPIO access
+sudo apt-get install -y python3-rpi.lgpio
+```
+
+### 2. Clone and Configure
+
+```bash
+git clone https://github.com/AzureDominus/azuregates.git
+cd azuregates
+
+# Create production environment file
+cp .env.example .env
+nano .env  # Edit with production values
+```
+
+### 3. Configure Gates
+
+Edit `config/gates.prod.yaml` with your GPIO pin assignments:
+
+```yaml
+gates:
+  - id: north-gate
+    name: North Gate
+    driver: gpio
+    capabilities: [open, close]
+    config:
+      openPin: 2
+      closePin: 3
+      holdDurationMs: 45000  # Max gate travel time
+      activeHigh: false      # LOW activates relay
+```
+
+### 4. Start Production Stack
+
+```bash
+# Start with production configuration
+docker compose -f docker-compose.prod.yml up -d
+
+# View logs
+docker compose -f docker-compose.prod.yml logs -f
+
+# Access at http://gates.local
+```
+
+### 5. Initial Authentik Setup
+
+See [docs/AUTHENTIK_SETUP.md](docs/AUTHENTIK_SETUP.md) for configuring authentication.
 
 ## Security
 

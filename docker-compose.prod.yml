@@ -1,5 +1,8 @@
 # Production Docker Compose Configuration
 # This file is used for deploying to a Raspberry Pi or other production environment
+#
+# Images are pulled from GHCR: ghcr.io/azuredominus/azuregates-*
+# To build locally instead, use: docker compose -f docker-compose.prod.yml build
 
 services:
   # Reverse Proxy - Single entrypoint
@@ -22,6 +25,7 @@ services:
 
   # Frontend SPA (production build)
   frontend:
+    image: ghcr.io/azuredominus/azuregates-frontend:${GATES_VERSION:-latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -32,6 +36,7 @@ services:
 
   # Backend API
   backend:
+    image: ghcr.io/azuredominus/azuregates-backend:${GATES_VERSION:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -42,12 +47,21 @@ services:
       - DATABASE_URL=postgresql://gates:${POSTGRES_PASSWORD}@postgres:5432/gates
       - REDIS_URL=redis://redis:6379
       - SESSION_SECRET=${SESSION_SECRET}
+      # Authentik OIDC Configuration
       - AUTHENTIK_URL=http://authentik:9000
+      - AUTHENTIK_EXTERNAL_URL=${AUTHENTIK_EXTERNAL_URL:-http://gates.local/auth}
       - AUTHENTIK_CLIENT_ID=${AUTHENTIK_CLIENT_ID}
       - AUTHENTIK_CLIENT_SECRET=${AUTHENTIK_CLIENT_SECRET}
+      - AUTHENTIK_SLUG=${AUTHENTIK_SLUG:-azure-gates}
+      - AUTHENTIK_ADMIN_GROUP=${AUTHENTIK_ADMIN_GROUP:-gates-admin}
+      # Application Settings
       - BASE_URL=${BASE_URL:-http://gates.local}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      # GPIO Configuration (Raspberry Pi)
       - GPIO_AVAILABLE=true
+      # Config file settings
+      - CONFIG_PATH=/app/config
+      - GATES_CONFIG_FILE=${GATES_CONFIG_FILE:-gates.prod.yaml}
     volumes:
       - ./config:/app/config:ro
       - ./config/history:/app/config/history

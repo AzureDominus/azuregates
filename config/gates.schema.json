@@ -168,11 +168,19 @@
           "type": "integer",
           "minimum": 50,
           "maximum": 5000,
-          "default": 500
+          "default": 500,
+          "description": "Duration for toggle/pulse operations (ms)"
+        },
+        "holdDurationMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 120000,
+          "description": "Duration to hold the pin active for open/close operations (ms). Used for gates that move while pin is held low/high."
         },
         "activeHigh": {
           "type": "boolean",
-          "default": false
+          "default": false,
+          "description": "If true, pin is HIGH when active. If false, pin is LOW when active (relay closes on low)."
         }
       }
     },

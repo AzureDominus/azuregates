@@ -25,13 +25,10 @@ function hashToken(token: string): string {
 
 export async function guestRoutes(app: FastifyInstance) {
   // Create a new guest invite (magic link) - Admin only
-  app.post(
+  app.post<{ Body: z.infer<typeof createInviteSchema> }>(
     '/invites',
     { preHandler: adminPreHandler },
-    async (
-      request: FastifyRequest<{ Body: z.infer<typeof createInviteSchema> }>,
-      reply: FastifyReply
-    ) => {
+    async (request, reply) => {
       const user = getCurrentUser(request)!; // preHandler ensures user exists
 
       const parsed = createInviteSchema.safeParse(request.body);
@@ -105,7 +102,7 @@ export async function guestRoutes(app: FastifyInstance) {
   );
 
   // List all invites - Admin only (admins see all invites)
-  app.get('/invites', { preHandler: adminPreHandler }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/invites', { preHandler: adminPreHandler }, async (request, reply) => {
     const invites = await prisma.invite.findMany({
       orderBy: { createdAt: 'desc' },
       select: {
@@ -127,7 +124,7 @@ export async function guestRoutes(app: FastifyInstance) {
   });
 
   // Delete/revoke an invite - Admin only
-  app.delete('/invites/:id', { preHandler: adminPreHandler }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  app.delete<{ Params: { id: string } }>('/invites/:id', { preHandler: adminPreHandler }, async (request, reply) => {
     const user = getCurrentUser(request)!;
 
     const invite = await prisma.invite.findUnique({
@@ -146,9 +143,9 @@ export async function guestRoutes(app: FastifyInstance) {
   });
 
   // Redeem a guest token (magic link landing)
-  app.get(
+  app.get<{ Querystring: { token: string } }>(
     '/redeem',
-    async (request: FastifyRequest<{ Querystring: { token: string } }>, reply: FastifyReply) => {
+    async (request, reply) => {
       const { token } = request.query;
 
       if (!token) {
@@ -239,7 +236,7 @@ export async function guestRoutes(app: FastifyInstance) {
   );
 
   // Get guest scope info (for frontend to know what the guest can access)
-  app.get('/scope', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/scope', async (request, reply) => {
     const user = getCurrentUser(request);
     const session = request.session as any;
     

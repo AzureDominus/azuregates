@@ -26,7 +26,7 @@ export class WebhookDriver extends BaseDriver {
   readonly supportedActions: GateAction[] = ['open', 'close', 'stop', 'toggle', 'state'];
 
   async execute(gate: Gate, action: GateAction): Promise<DriverResult> {
-    const config = gate.driverConfig as WebhookDriverConfig;
+    const config = gate.driverConfig as unknown as WebhookDriverConfig;
     const url = this.getEndpointUrl(config, action);
 
     if (!url) {
@@ -68,7 +68,7 @@ export class WebhookDriver extends BaseDriver {
 
       let data: Record<string, unknown> = {};
       try {
-        data = await response.json();
+        data = (await response.json()) as Record<string, unknown>;
       } catch {
         // Response may not be JSON
       }
