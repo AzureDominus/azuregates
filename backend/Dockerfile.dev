@@ -11,7 +11,8 @@ COPY package*.json ./
 COPY prisma ./prisma/
 
 # Install all dependencies (including dev)
-RUN npm install
+# Use --ignore-scripts to skip opengpio native build (not needed in dev)
+RUN npm install --ignore-scripts
 
 # Generate Prisma client
 RUN npx prisma generate
@@ -24,6 +25,8 @@ EXPOSE 3001
 
 ENV NODE_ENV=development
 ENV PORT=3001
+# Mock opengpio bindings in development (no GPIO hardware)
+ENV OPENGPIO_MOCKED=true
 
 # Use tsx for hot reload in development
 CMD ["npm", "run", "dev"]
