@@ -13,32 +13,29 @@
     # auto_https off
 }
 
-# Local access via mDNS hostname (e.g., gates.local, garagepi.local)
-gates.local, garagepi.local, localhost, {$HOSTNAME:gates.home} {
-    # Use self-signed cert for local HTTPS (browsers will warn but it works)
+# Local access via mDNS hostname and custom domain (via Cloudflare Tunnel)
+# CUSTOM_DOMAIN env var enables remote access, e.g., CUSTOM_DOMAIN=gates.aztelar.com
+gates.local, garagepi.local, localhost, {$HOSTNAME:gates.home}, {$CUSTOM_DOMAIN:_.disabled} {
+    # Use self-signed cert for local HTTPS (Cloudflare handles public SSL via tunnel)
     tls internal
 
     # Backend API
     handle /api/* {
         reverse_proxy backend:3001 {
-            header_up X-Forwarded-Proto {scheme}
-            header_up X-Real-IP {remote_host}
+            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
         }
     }
 
     # Authentik authentication - strip /auth prefix and forward to Authentik root
     handle_path /auth/* {
         reverse_proxy authentik:9000 {
-            header_up X-Forwarded-Proto {scheme}
-            header_up X-Real-IP {remote_host}
+            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
         }
     }
 
     # Authentik outpost (if using forward auth)
     handle /outpost.goauthentik.io/* {
-        reverse_proxy authentik:9000 {
-            header_up X-Forwarded-Proto {scheme}
-        }
+        reverse_proxy authentik:9000
     }
 
     # Health check
@@ -48,9 +45,7 @@ gates.local, garagepi.local, localhost, {$HOSTNAME:gates.home} {
 
     # Frontend (production nginx serving built files)
     handle {
-        reverse_proxy frontend:80 {
-            header_up X-Forwarded-Proto {scheme}
-        }
+        reverse_proxy frontend:80
     }
 
     # Security headers
@@ -71,58 +66,4 @@ gates.local, garagepi.local, localhost, {$HOSTNAME:gates.home} {
     }
 }
 
-# Custom domain support via Cloudflare Tunnel
-# Set CUSTOM_DOMAIN=yourdomain.com in your .env file
-{$CUSTOM_DOMAIN:} {
-    # Use internal TLS since Cloudflare handles the public SSL
-    tls internal
 
-    # Backend API
-    handle /api/* {
-        reverse_proxy backend:3001 {
-            header_up X-Forwarded-Proto https
-            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-        }
-    }
-
-    # Authentik authentication - strip /auth prefix
-    handle_path /auth/* {
-        reverse_proxy authentik:9000 {
-            header_up X-Forwarded-Proto https
-            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-        }
-    }
-
-    # Authentik outpost
-    handle /outpost.goauthentik.io/* {
-        reverse_proxy authentik:9000 {
-            header_up X-Forwarded-Proto https
-        }
-    }
-
-    # Health check
-    handle /health {
-        reverse_proxy backend:3001
-    }
-
-    # Frontend
-    handle {
-        reverse_proxy frontend:80 {
-            header_up X-Forwarded-Proto https
-        }
-    }
-
-    # Security headers
-    header {
-        X-Content-Type-Options nosniff
-        X-Frame-Options DENY
-        Referrer-Policy strict-origin-when-cross-origin
-        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
-    }
-
-    log {
-        output stdout
-        format json
-        level INFO
-    }
-}
