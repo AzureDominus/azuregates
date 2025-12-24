@@ -49,7 +49,20 @@ try {
   await setupSession(app);
 } catch (err) {
   app.log.warn({ err }, 'Failed to setup Redis session store, using in-memory fallback');
-  // For development without Redis, we can continue with cookie-only sessions
+  // Register in-memory session as fallback
+  const session = await import('@fastify/session');
+  await app.register(session.default, {
+    secret: config.sessionSecret,
+    cookie: {
+      secure: config.nodeEnv === 'production',
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 86400000,
+      path: '/',
+    },
+    saveUninitialized: false,
+  });
+  app.log.info('In-memory session middleware configured as fallback');
 }
 
 // Register routes
