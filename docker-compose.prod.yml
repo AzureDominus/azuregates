@@ -119,6 +119,9 @@ services:
     container_name: gates-authentik
     restart: unless-stopped
     command: server
+    ports:
+      - "9000:9000"
+      - "9443:9443"
     environment:
       - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
       - AUTHENTIK_REDIS__HOST=redis
