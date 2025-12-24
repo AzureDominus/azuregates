@@ -44,11 +44,12 @@ RUN npx prisma generate
 # Copy built files
 COPY --from=builder /app/dist ./dist
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
-
-USER nodejs
+# NOTE: Running as root is required for GPIO access on Raspberry Pi
+# The container already runs with privileged: true in docker-compose
+# If not using GPIO, you can uncomment the lines below for security:
+# RUN addgroup -g 1001 -S nodejs && \
+#     adduser -S nodejs -u 1001
+# USER nodejs
 
 EXPOSE 3001
 
