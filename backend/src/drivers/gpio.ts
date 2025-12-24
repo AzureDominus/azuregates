@@ -1,10 +1,14 @@
 import type { Gate } from '@prisma/client';
 import { z } from 'zod';
 import { existsSync } from 'fs';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { BaseDriver, type DriverResult } from './base.js';
 import type { GateAction, GpioDriverConfig } from '../config/schema.js';
 import { logger } from '../lib/logger.js';
 import { getConfig } from '../config/loader.js';
+
+const execAsync = promisify(exec);
 
 const gpioConfigSchema = z.object({
   openPin: z.number().int().min(0).max(40).optional(),
@@ -20,22 +24,24 @@ const gpioConfigSchema = z.object({
 const hasGpioDevice = process.env.GPIO_AVAILABLE === 'true' || 
   (process.platform === 'linux' && existsSync('/dev/gpiochip0'));
 
+// Check if gpioset command is available
+let hasGpiosetCommand: boolean | null = null;
+
+async function checkGpiosetAvailable(): Promise<boolean> {
+  if (hasGpiosetCommand !== null) return hasGpiosetCommand;
+  try {
+    await execAsync('which gpioset');
+    hasGpiosetCommand = true;
+    logger.info('GPIO: gpioset command available');
+  } catch {
+    hasGpiosetCommand = false;
+    logger.warn('GPIO: gpioset command not found');
+  }
+  return hasGpiosetCommand;
+}
+
 // In development mode (no actual GPIO), we simulate the GPIO operations
 const isSimulated = process.env.NODE_ENV === 'development' || !hasGpioDevice;
-
-// GPIO output interface for type safety (opengpio library)
-interface GpioOutputInterface {
-  value: boolean;
-}
-
-// Device interface for creating outputs
-interface GpioDeviceInterface {
-  output: (pin: number | string) => GpioOutputInterface;
-}
-
-// Lazy-loaded GPIO library (opengpio)
-let gpioDevice: GpioDeviceInterface | null = null;
-let gpioLibraryLoaded = false;
 
 // Track active operations per gate to prevent simultaneous open/close
 // This is CRITICAL for safety - we must NEVER activate open and close simultaneously
@@ -44,7 +50,6 @@ interface ActiveOperation {
   pin: number;
   startTime: number;
   abortController: AbortController;
-  gpio?: GpioOutputInterface; // Reference to the GPIO output for cleanup
   config: GpioDriverConfig;
 }
 const activeGateOperations: Map<string, ActiveOperation> = new Map();
@@ -52,24 +57,52 @@ const activeGateOperations: Map<string, ActiveOperation> = new Map();
 // Mutex locks per gate to ensure serialized access
 const gateMutexes: Map<string, Promise<void>> = new Map();
 
-async function loadGpioLibrary(): Promise<GpioDeviceInterface | null> {
-  if (gpioLibraryLoaded) return gpioDevice;
-  gpioLibraryLoaded = true;
+/**
+ * Execute gpioset command to pulse a GPIO pin.
+ * Uses libgpiod v2 CLI syntax with --toggle for automatic pulse.
+ * 
+ * For activeHigh=false (active-low relay): pulse to 0 (LOW) to activate
+ * For activeHigh=true (active-high): pulse to 1 (HIGH) to activate
+ * 
+ * @param pin - GPIO pin number (BCM numbering)
+ * @param durationMs - Duration to hold the active state in milliseconds
+ * @param activeHigh - Whether the active state is HIGH (true) or LOW (false)
+ */
+async function executeGpioset(pin: number, durationMs: number, activeHigh: boolean): Promise<void> {
+  // For active-low relay: active value is 0 (LOW), for active-high: active value is 1 (HIGH)
+  const activeValue = activeHigh ? 1 : 0;
   
-  if (isSimulated) {
-    logger.info('GPIO: Running in simulated mode (no GPIO device or development mode)');
-    return null;
+  // gpioset v2 syntax: --toggle toggles the pin after hold-period expires
+  // This sets pin to activeValue, waits durationMs, then toggles back
+  const cmd = `gpioset --chip gpiochip0 --hold-period ${durationMs}ms --toggle 0 ${pin}=${activeValue}`;
+  
+  logger.debug({ cmd, pin, durationMs, activeHigh, activeValue }, 'Executing gpioset command');
+  
+  const { stdout, stderr } = await execAsync(cmd);
+  
+  if (stderr) {
+    logger.warn({ stderr, cmd }, 'gpioset produced stderr output');
   }
+  if (stdout) {
+    logger.debug({ stdout, cmd }, 'gpioset stdout');
+  }
+}
 
+/**
+ * Force a GPIO pin to a specific value (used for stop/abort operations).
+ * Uses gpioset with a very short pulse to set the inactive state.
+ */
+async function forceGpioInactive(pin: number, activeHigh: boolean): Promise<void> {
+  const inactiveValue = activeHigh ? 0 : 1;
+  // Quick pulse to inactive - 1ms is enough to set the state
+  const cmd = `gpioset --chip gpiochip0 --hold-period 1ms --toggle 0 ${pin}=${inactiveValue}`;
+  
+  logger.debug({ cmd, pin, inactiveValue }, 'Forcing GPIO to inactive state');
+  
   try {
-    // Dynamic import of opengpio (ESM module with Raspberry Pi 4B driver)
-    const opengpio = await import('opengpio');
-    gpioDevice = opengpio.RaspberryPi_4B as unknown as GpioDeviceInterface;
-    logger.info('GPIO: opengpio library loaded successfully (using libgpiod v2)');
-    return gpioDevice;
+    await execAsync(cmd);
   } catch (err) {
-    logger.warn({ err }, 'GPIO: Could not load opengpio library, falling back to simulation');
-    return null;
+    logger.warn({ err, cmd, pin }, 'Failed to force GPIO inactive');
   }
 }
 
@@ -155,13 +188,16 @@ export class GpioDriver extends BaseDriver {
       // Signal the abort to interrupt the hold timer
       activeOp.abortController.abort();
 
-      // Immediately set the active pin to inactive state
-      if (activeOp.gpio) {
-        const inactiveValue = !activeOp.config.activeHigh;
+      // Force the active pin to inactive state using gpioset
+      const gatesConfig = getConfig();
+      const isMaintenanceMode = gatesConfig?.settings?.maintenanceMode ?? false;
+      const shouldSimulate = isSimulated || isMaintenanceMode;
+      
+      if (!shouldSimulate && await checkGpiosetAvailable()) {
         try {
-          activeOp.gpio.value = inactiveValue;
+          await forceGpioInactive(activeOp.pin, activeOp.config.activeHigh);
           logger.info(
-            { gateId: gate.id, pin: activeOp.pin, inactiveValue },
+            { gateId: gate.id, pin: activeOp.pin },
             'Released active pin to inactive state'
           );
         } catch (err) {
@@ -191,21 +227,14 @@ export class GpioDriver extends BaseDriver {
           // Simulate the stop pin pulse
           await new Promise((resolve) => setTimeout(resolve, config.pulseDurationMs));
           logger.info({ gateId: gate.id, stopPin, simulated: true, maintenanceMode: isMaintenanceMode }, 'Simulated stop pin pulse');
+        } else if (await checkGpiosetAvailable()) {
+          // Use gpioset to pulse the stop pin
+          await executeGpioset(stopPin, config.pulseDurationMs, config.activeHigh);
+          logger.info({ gateId: gate.id, stopPin, durationMs: config.pulseDurationMs }, 'Pulsed stop pin via gpioset');
         } else {
-          const device = await loadGpioLibrary();
-          if (device) {
-            // Create output and set to inactive initially
-            const inactiveValue = !config.activeHigh;
-            const activeValue = config.activeHigh;
-            
-            const gpio = device.output(stopPin);
-            gpio.value = inactiveValue;
-
-            // Pulse: set active, wait, set inactive
-            gpio.value = activeValue;
-            await new Promise((resolve) => setTimeout(resolve, config.pulseDurationMs));
-            gpio.value = inactiveValue;
-          }
+          // Simulate if gpioset not available
+          await new Promise((resolve) => setTimeout(resolve, config.pulseDurationMs));
+          logger.info({ gateId: gate.id, stopPin, simulated: true, reason: 'gpioset not available' }, 'Simulated stop pin pulse');
         }
         pulsedStopPin = true;
       } catch (err) {
@@ -326,7 +355,6 @@ export class GpioDriver extends BaseDriver {
         startTime: Date.now(),
         abortController,
         config,
-        // No gpio instance in simulation
       });
     }
 
@@ -373,10 +401,12 @@ export class GpioDriver extends BaseDriver {
     const abortController = new AbortController();
     
     try {
-      const device = await loadGpioLibrary();
+      // Check if gpioset is available
+      const gpiosetAvailable = await checkGpiosetAvailable();
       
-      if (!device) {
-        // Fall back to simulation if library not available
+      if (!gpiosetAvailable) {
+        // Fall back to simulation if gpioset not available
+        logger.warn({ gateId: gate.id }, 'gpioset not available, falling back to simulation');
         return this.simulateGpio(gate, action, pin, config);
       }
 
@@ -390,45 +420,24 @@ export class GpioDriver extends BaseDriver {
           holdDurationMs: config.holdDurationMs, 
           activeHigh: config.activeHigh 
         },
-        'Executing GPIO operation'
+        'Executing GPIO operation via gpioset'
       );
 
-      // Determine active/inactive values based on activeHigh setting
-      const activeValue = config.activeHigh;
-      const inactiveValue = !config.activeHigh;
-
-      // Create GPIO output and set to inactive state initially
-      const gpio = device.output(pin);
-      gpio.value = inactiveValue;
-
       // Track active operation for safety checks (CRITICAL for open/close mutual exclusion)
-      // Store GPIO reference so stop can release the pin
       if (action === 'open' || action === 'close') {
         activeGateOperations.set(gate.id, {
           action,
           pin,
           startTime: Date.now(),
           abortController,
-          gpio,
           config,
         });
       }
 
       try {
-        // Set active state (for activeHigh=false, this sets pin LOW to close relay)
-        gpio.value = activeValue;
-        
-        // Hold for the configured duration (interruptible via abort)
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(resolve, duration);
-          abortController.signal.addEventListener('abort', () => {
-            clearTimeout(timeout);
-            reject(new Error('Operation aborted by stop command'));
-          });
-        });
-        
-        // Set inactive state (releases the relay)
-        gpio.value = inactiveValue;
+        // Execute the gpioset command - it handles the pulse timing internally
+        // The command will block until the hold-period expires and pin toggles back
+        await executeGpioset(pin, duration, config.activeHigh);
         
         logger.info(
           { gateId: gate.id, action, pin, durationMs: duration },
@@ -442,7 +451,6 @@ export class GpioDriver extends BaseDriver {
         };
       } catch (err) {
         if (abortController.signal.aborted) {
-          // Don't release here - the stop handler already released the pin
           logger.info({ gateId: gate.id, action }, 'GPIO operation was stopped');
           return {
             success: true,
@@ -454,14 +462,7 @@ export class GpioDriver extends BaseDriver {
       } finally {
         // Clear active operation tracking
         if (action === 'open' || action === 'close') {
-          // Set to inactive if we weren't aborted (stop handler handles that case)
-          if (!abortController.signal.aborted) {
-            gpio.value = inactiveValue;
-          }
           activeGateOperations.delete(gate.id);
-        } else {
-          // For non-open/close actions (toggle), always set inactive
-          gpio.value = inactiveValue;
         }
       }
     } catch (err) {

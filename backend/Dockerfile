@@ -1,23 +1,19 @@
 # Production Dockerfile
-# Using Debian slim instead of Alpine because opengpio requires libgpiodcxx (C++ bindings)
-# which are not available in Alpine's packages
-FROM node:24-slim AS builder
+# Using Alpine with libgpiod CLI tools (gpioset/gpioget)
+# No native GPIO library compilation needed - we shell out to gpioset
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
-# Add Debian sid repository for libgpiod 2.x with C++ bindings
-# opengpio requires libgpiodcxx.so.2 which is only in libgpiod >= 2.x
-RUN echo 'deb http://deb.debian.org/debian sid main' > /etc/apt/sources.list.d/sid.list && \
-    apt-get update && \
-    apt-get install -y -t sid python3 make g++ libgpiod-dev && \
-    rm -rf /var/lib/apt/lists/*
+# Build dependencies for native modules (prisma)
+RUN apk add --no-cache python3 make g++
 
 # Copy package files
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install dependencies (including optional for TypeScript type checking)
-RUN npm ci --include=optional
+# Install dependencies
+RUN npm ci
 
 # Generate Prisma client
 RUN npx prisma generate
@@ -30,29 +26,18 @@ COPY src ./src
 RUN npm run build
 
 # Production image
-FROM node:24-slim
+FROM node:24-alpine
 
 WORKDIR /app
 
 # Install dumb-init for proper signal handling
-# Install libgpiod 2.x from sid for opengpio (GPIO via libgpiod)
-RUN echo 'deb http://deb.debian.org/debian sid main' > /etc/apt/sources.list.d/sid.list && \
-    apt-get update && \
-    apt-get install -y dumb-init && \
-    apt-get install -y -t sid python3 make g++ libgpiod-dev && \
-    rm -rf /var/lib/apt/lists/*
+# Install libgpiod for gpioset/gpioget CLI tools
+RUN apk add --no-cache dumb-init libgpiod
 
 # Copy package files and install production deps only
-# Use --include=optional to ensure opengpio is installed
 COPY package*.json ./
 COPY prisma ./prisma/
-RUN npm ci --omit=dev --include=optional && npm cache clean --force
-
-# Remove build dependencies to reduce image size (keep libgpiod runtime libraries)
-RUN apt-get update && apt-get remove -y make g++ libgpiod-dev && \
-    apt-get install -y -t sid libgpiod3 && \
-    apt-get autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
+RUN npm ci --omit=dev && npm cache clean --force
 
 # Generate Prisma client
 RUN npx prisma generate

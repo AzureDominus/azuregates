@@ -47,8 +47,5 @@
   },
   "engines": {
     "node": ">=20.0.0"
-  },
-  "optionalDependencies": {
-    "opengpio": "^2.0.2"
   }
 }
