@@ -92,7 +92,7 @@ export async function oidcRoutes(app: FastifyInstance) {
       const effectiveBaseUrl = isRemoteAccess ? config.baseUrl : `https://${requestHost}`;
       const effectiveAuthUrl = isRemoteAccess 
         ? config.authentik.externalUrl 
-        : `http://${requestHost.replace(':443', '').replace(':80', '')}:9000`;
+        : `https://${requestHost.replace(':443', '').replace(':80', '')}:9443`;
 
       // Build authorization URL
       const redirectUri = `${effectiveBaseUrl}/api/auth/callback`;
