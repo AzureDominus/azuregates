@@ -4,6 +4,7 @@ import { existsSync } from 'fs';
 import { BaseDriver, type DriverResult } from './base.js';
 import type { GateAction, GpioDriverConfig } from '../config/schema.js';
 import { logger } from '../lib/logger.js';
+import { getConfig } from '../config/loader.js';
 
 const gpioConfigSchema = z.object({
   openPin: z.number().int().min(0).max(40).optional(),
@@ -106,7 +107,14 @@ export class GpioDriver extends BaseDriver {
 
     // Use mutex to serialize operations on the same gate
     return this.withGateMutex(gate.id, async () => {
-      if (isSimulated) {
+      // Check if maintenance mode is enabled - force simulation
+      const gatesConfig = getConfig();
+      const isMaintenanceMode = gatesConfig?.settings?.maintenanceMode ?? false;
+      
+      if (isSimulated || isMaintenanceMode) {
+        if (isMaintenanceMode) {
+          logger.info({ gateId: gate.id, action }, 'Maintenance mode enabled - simulating GPIO');
+        }
         return this.simulateGpio(gate, action, pin, config);
       }
       return this.executeRealGpio(gate, action, pin, config);
@@ -161,16 +169,21 @@ export class GpioDriver extends BaseDriver {
 
     // Step 2: If stopPin is configured, pulse it
     if (stopPin !== undefined) {
+      // Check if maintenance mode is enabled - force simulation
+      const gatesConfig = getConfig();
+      const isMaintenanceMode = gatesConfig?.settings?.maintenanceMode ?? false;
+      const shouldSimulate = isSimulated || isMaintenanceMode;
+      
       logger.info(
-        { gateId: gate.id, stopPin, pulseDurationMs: config.pulseDurationMs },
+        { gateId: gate.id, stopPin, pulseDurationMs: config.pulseDurationMs, simulated: shouldSimulate },
         'Pulsing stop pin'
       );
 
       try {
-        if (isSimulated) {
+        if (shouldSimulate) {
           // Simulate the stop pin pulse
           await new Promise((resolve) => setTimeout(resolve, config.pulseDurationMs));
-          logger.info({ gateId: gate.id, stopPin, simulated: true }, 'Simulated stop pin pulse');
+          logger.info({ gateId: gate.id, stopPin, simulated: true, maintenanceMode: isMaintenanceMode }, 'Simulated stop pin pulse');
         } else {
           const Gpio = await loadGpioLibrary();
           if (Gpio) {

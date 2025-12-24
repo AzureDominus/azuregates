@@ -26,12 +26,17 @@ FROM node:24-alpine
 WORKDIR /app
 
 # Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+# Install build dependencies for native modules (onoff for GPIO)
+RUN apk add --no-cache dumb-init python3 make g++
 
 # Copy package files and install production deps only
+# Use --include=optional to ensure onoff is installed
 COPY package*.json ./
 COPY prisma ./prisma/
-RUN npm ci --only=production && npm cache clean --force
+RUN npm ci --omit=dev --include=optional && npm cache clean --force
+
+# Remove build dependencies to reduce image size (keep python3 for potential runtime needs)
+RUN apk del make g++
 
 # Generate Prisma client
 RUN npx prisma generate
