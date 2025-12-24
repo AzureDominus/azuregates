@@ -218,16 +218,30 @@ export async function oidcRoutes(app: FastifyInstance) {
     session.idToken = null;
     session.destroy();
     
+    // Determine if this is remote access (via Cloudflare) or local access
+    const requestHost = request.headers.host || '';
+    const baseUrlHost = new URL(config.baseUrl).host;
+    // Remote access: host matches BASE_URL (e.g., gates.aztelar.com) or has cf-ray header
+    const isRemoteAccess = requestHost === baseUrlHost || !!request.headers['cf-ray'];
+    
+    // Use appropriate URLs based on access type
+    const effectiveBaseUrl = isRemoteAccess 
+      ? config.baseUrl  // Remote: use configured base URL (e.g., https://gates.aztelar.com)
+      : `https://${requestHost}`;  // Local: use request host (e.g., https://garagepi.local:9443)
+    const effectiveAuthUrl = isRemoteAccess
+      ? config.authentik.externalUrl  // Remote: use external auth URL (e.g., https://gates-auth.aztelar.com)
+      : config.authentik.localUrl;  // Local: use local auth URL (e.g., https://garagepi.local:9443)
+    
     // Use OIDC end-session endpoint with id_token_hint for proper SSO logout
     try {
       const oidc = await getOidcConfig();
       let logoutUrl = openidClient.buildEndSessionUrl(oidc, {
         id_token_hint: idToken,
-        post_logout_redirect_uri: config.baseUrl,
+        post_logout_redirect_uri: effectiveBaseUrl,
       });
       
-      // Replace internal Authentik URL with external URL for browser access
-      const externalLogoutUrl = logoutUrl.href.replace(config.authentik.url, config.authentik.externalUrl);
+      // Replace internal Authentik URL with appropriate external URL for browser access
+      const externalLogoutUrl = logoutUrl.href.replace(config.authentik.url, effectiveAuthUrl);
       
       return reply.send({ 
         success: true, 
@@ -257,21 +271,35 @@ export async function oidcRoutes(app: FastifyInstance) {
     session.idToken = null;
     session.destroy();
     
+    // Determine if this is remote access (via Cloudflare) or local access
+    const requestHost = request.headers.host || '';
+    const baseUrlHost = new URL(config.baseUrl).host;
+    // Remote access: host matches BASE_URL (e.g., gates.aztelar.com) or has cf-ray header
+    const isRemoteAccess = requestHost === baseUrlHost || !!request.headers['cf-ray'];
+    
+    // Use appropriate URLs based on access type
+    const effectiveBaseUrl = isRemoteAccess 
+      ? config.baseUrl  // Remote: use configured base URL (e.g., https://gates.aztelar.com)
+      : `https://${requestHost}`;  // Local: use request host (e.g., https://garagepi.local:9443)
+    const effectiveAuthUrl = isRemoteAccess
+      ? config.authentik.externalUrl  // Remote: use external auth URL (e.g., https://gates-auth.aztelar.com)
+      : config.authentik.localUrl;  // Local: use local auth URL (e.g., https://garagepi.local:9443)
+    
     // Use OIDC end-session endpoint
     try {
       const oidc = await getOidcConfig();
       let logoutUrl = openidClient.buildEndSessionUrl(oidc, {
         id_token_hint: idToken,
-        post_logout_redirect_uri: config.baseUrl,
+        post_logout_redirect_uri: effectiveBaseUrl,
       });
       
-      // Replace internal Authentik URL with external URL for browser access
-      const externalLogoutUrl = logoutUrl.href.replace(config.authentik.url, config.authentik.externalUrl);
+      // Replace internal Authentik URL with appropriate external URL for browser access
+      const externalLogoutUrl = logoutUrl.href.replace(config.authentik.url, effectiveAuthUrl);
       
       return reply.redirect(externalLogoutUrl);
     } catch (err) {
       logger.warn({ err }, 'Failed to build end session URL, redirecting to base URL');
-      return reply.redirect(config.baseUrl);
+      return reply.redirect(effectiveBaseUrl);
     }
   });
 }
