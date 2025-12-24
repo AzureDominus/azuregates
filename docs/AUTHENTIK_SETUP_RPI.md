@@ -71,7 +71,7 @@ Use the generated URL to access Authentik and set up the admin password.
 | Authentication flow | `default-authentication-flow` |
 | Authorization flow | `default-provider-authorization-implicit-consent` |
 | Client type | `Confidential` |
-| Client ID | `gates` |
+| Client ID | `azure-gates` |
 | Client Secret | (click generate and save this!) |
 | Redirect URIs | `http://garagepi.local/api/auth/callback` |
 | Signing Key | Select an existing key or create new |

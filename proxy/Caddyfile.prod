@@ -71,38 +71,58 @@ gates.local, garagepi.local, localhost, {$HOSTNAME:gates.home} {
     }
 }
 
-# Custom domain support (only active when CUSTOM_DOMAIN env var is set)
-# To enable: set CUSTOM_DOMAIN=yourdomain.com in your environment
-# {$CUSTOM_DOMAIN} {
-#     handle /api/* {
-#         reverse_proxy backend:3001 {
-#             header_up X-Forwarded-Proto {scheme}
-#             header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-#         }
-#     }
-#
-#     handle /auth/* {
-#         reverse_proxy authentik:9000 {
-#             header_up X-Forwarded-Proto {scheme}
-#             header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-#         }
-#     }
-#
-#     handle {
-#         reverse_proxy frontend:80 {
-#             header_up X-Forwarded-Proto {scheme}
-#         }
-#     }
-#
-#     header {
-#         X-Content-Type-Options nosniff
-#         X-Frame-Options DENY
-#         Referrer-Policy strict-origin-when-cross-origin
-#     }
-#
-#     log {
-#         output stdout
-#         format json
-#         level INFO
-#     }
-# }
+# Custom domain support via Cloudflare Tunnel
+# Set CUSTOM_DOMAIN=yourdomain.com in your .env file
+{$CUSTOM_DOMAIN:} {
+    # Use internal TLS since Cloudflare handles the public SSL
+    tls internal
+
+    # Backend API
+    handle /api/* {
+        reverse_proxy backend:3001 {
+            header_up X-Forwarded-Proto https
+            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+        }
+    }
+
+    # Authentik authentication - strip /auth prefix
+    handle_path /auth/* {
+        reverse_proxy authentik:9000 {
+            header_up X-Forwarded-Proto https
+            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+        }
+    }
+
+    # Authentik outpost
+    handle /outpost.goauthentik.io/* {
+        reverse_proxy authentik:9000 {
+            header_up X-Forwarded-Proto https
+        }
+    }
+
+    # Health check
+    handle /health {
+        reverse_proxy backend:3001
+    }
+
+    # Frontend
+    handle {
+        reverse_proxy frontend:80 {
+            header_up X-Forwarded-Proto https
+        }
+    }
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+    }
+
+    log {
+        output stdout
+        format json
+        level INFO
+    }
+}
