@@ -72,11 +72,14 @@ export function GateCard({ gate }: GateCardProps) {
           .filter((action): action is GateAction => action !== 'state')
           .map((action) => {
             const Icon = actionIcons[action];
+            // Stop button should remain enabled even when another action is in progress
+            const isStopAction = action === 'stop';
+            const isButtonDisabled = isDisabled || (commandMutation.isPending && !isStopAction);
             return (
               <button
                 key={action}
                 onClick={() => handleAction(action)}
-                disabled={isDisabled || commandMutation.isPending}
+                disabled={isButtonDisabled}
                 className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${actionColors[action]}`}
               >
                 {commandMutation.isPending && commandMutation.variables?.action === action ? (
