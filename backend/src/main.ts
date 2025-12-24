@@ -31,7 +31,8 @@ const app = Fastify({
 
 // Register plugins
 await app.register(cors, {
-  origin: config.nodeEnv === 'development' ? true : config.corsOrigin,
+  // In development, allow all origins. In production, use CORS_ORIGIN env var or fall back to BASE_URL
+  origin: config.nodeEnv === 'development' ? true : (config.corsOrigin || config.baseUrl || true),
   credentials: true,
 });
 
