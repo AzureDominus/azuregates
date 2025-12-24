@@ -42,7 +42,8 @@ export function GateCard({ gate }: GateCardProps) {
   });
 
   const handleAction = (action: GateAction) => {
-    if (commandMutation.isPending) return;
+    // Allow stop to be sent even when another action is in progress
+    if (commandMutation.isPending && action !== 'stop') return;
     commandMutation.mutate({ gateId: gate.id, action });
   };
 
