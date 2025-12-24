@@ -142,7 +142,8 @@
     },
     "gpioConfig": {
       "type": "object",
-      "required": ["pulseDurationMs", "activeHigh"],
+      "required": ["activeHigh"],
+      "additionalProperties": false,
       "properties": {
         "openPin": {
           "type": "integer",
@@ -167,7 +168,7 @@
         "pulseDurationMs": {
           "type": "integer",
           "minimum": 50,
-          "maximum": 5000,
+          "maximum": 60000,
           "default": 500,
           "description": "Duration for toggle/pulse operations (ms)"
         },
@@ -186,6 +187,7 @@
     },
     "webhookConfig": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "endpoints": {
           "type": "object",

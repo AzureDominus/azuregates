@@ -13,8 +13,8 @@
     # auto_https off
 }
 
-# Local access via mDNS hostname (e.g., gates.local)
-gates.local, localhost, {$HOSTNAME:gates.home} {
+# Local access via mDNS hostname (e.g., gates.local, garagepi.local)
+gates.local, garagepi.local, localhost, {$HOSTNAME:gates.home} {
     # Use self-signed cert for local HTTPS (browsers will warn but it works)
     tls internal
 
