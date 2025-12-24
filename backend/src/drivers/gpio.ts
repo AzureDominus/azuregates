@@ -16,21 +16,25 @@ const gpioConfigSchema = z.object({
   activeHigh: z.boolean().default(false),
 });
 
-// Check if we're running on hardware with GPIO support
-const isRaspberryPi = process.env.GPIO_AVAILABLE === 'true' || 
-  (process.platform === 'linux' && existsSync('/sys/class/gpio'));
+// Check if we're running on hardware with GPIO support (libgpiod)
+const hasGpioDevice = process.env.GPIO_AVAILABLE === 'true' || 
+  (process.platform === 'linux' && existsSync('/dev/gpiochip0'));
 
 // In development mode (no actual GPIO), we simulate the GPIO operations
-const isSimulated = process.env.NODE_ENV === 'development' || !isRaspberryPi;
+const isSimulated = process.env.NODE_ENV === 'development' || !hasGpioDevice;
 
-// GPIO interface for type safety
-interface GpioInterface {
-  writeSync: (value: 0 | 1) => void;
-  unexport: () => void;
+// RIO interface for type safety (rpi-io library)
+interface RIOInterface {
+  write: (value: 0 | 1) => void;
+  close: () => void;
 }
 
-// Lazy-loaded GPIO library
-let GpioClass: new (pin: number, direction: 'in' | 'out' | 'high' | 'low') => GpioInterface;
+// RIO class type
+type RIOClass = new (pin: number, mode: 'output' | 'input', options?: { value?: 0 | 1 }) => RIOInterface;
+
+// Lazy-loaded GPIO library (rpi-io)
+let RIO: RIOClass | null = null;
+let gpioLibraryLoaded = false;
 
 // Track active operations per gate to prevent simultaneous open/close
 // This is CRITICAL for safety - we must NEVER activate open and close simultaneously
@@ -39,7 +43,7 @@ interface ActiveOperation {
   pin: number;
   startTime: number;
   abortController: AbortController;
-  gpio?: GpioInterface; // Reference to the GPIO instance for cleanup
+  gpio?: RIOInterface; // Reference to the RIO instance for cleanup
   config: GpioDriverConfig;
 }
 const activeGateOperations: Map<string, ActiveOperation> = new Map();
@@ -47,21 +51,23 @@ const activeGateOperations: Map<string, ActiveOperation> = new Map();
 // Mutex locks per gate to ensure serialized access
 const gateMutexes: Map<string, Promise<void>> = new Map();
 
-async function loadGpioLibrary(): Promise<typeof GpioClass | null> {
-  if (GpioClass) return GpioClass;
+async function loadGpioLibrary(): Promise<RIOClass | null> {
+  if (gpioLibraryLoaded) return RIO;
+  gpioLibraryLoaded = true;
   
   if (isSimulated) {
-    logger.info('GPIO: Running in simulated mode');
+    logger.info('GPIO: Running in simulated mode (no GPIO device or development mode)');
     return null;
   }
 
   try {
-    const onoff = await import('onoff');
-    GpioClass = onoff.Gpio;
-    logger.info('GPIO: onoff library loaded successfully');
-    return GpioClass;
+    // Dynamic import of rpi-io (ESM module)
+    const rpiIo = await import('rpi-io');
+    RIO = rpiIo.RIO;
+    logger.info('GPIO: rpi-io library loaded successfully (using libgpiod)');
+    return RIO;
   } catch (err) {
-    logger.warn({ err }, 'GPIO: Could not load onoff library, falling back to simulation');
+    logger.warn({ err }, 'GPIO: Could not load rpi-io library, falling back to simulation');
     return null;
   }
 }
@@ -152,10 +158,12 @@ export class GpioDriver extends BaseDriver {
       if (activeOp.gpio) {
         const inactiveValue: 0 | 1 = activeOp.config.activeHigh ? 0 : 1;
         try {
-          activeOp.gpio.writeSync(inactiveValue);
+          activeOp.gpio.write(inactiveValue);
+          activeOp.gpio.close();
           logger.info(
             { gateId: gate.id, pin: activeOp.pin, inactiveValue },
             'Released active pin to inactive state'
+          );
           );
         } catch (err) {
           logger.warn({ gateId: gate.id, pin: activeOp.pin, err }, 'Failed to release active pin');
@@ -185,19 +193,20 @@ export class GpioDriver extends BaseDriver {
           await new Promise((resolve) => setTimeout(resolve, config.pulseDurationMs));
           logger.info({ gateId: gate.id, stopPin, simulated: true, maintenanceMode: isMaintenanceMode }, 'Simulated stop pin pulse');
         } else {
-          const Gpio = await loadGpioLibrary();
-          if (Gpio) {
-            const initialState = config.activeHigh ? 'low' : 'high';
-            const gpio = new Gpio(stopPin, initialState as any);
-            const activeValue: 0 | 1 = config.activeHigh ? 1 : 0;
+          const RIOClass = await loadGpioLibrary();
+          if (RIOClass) {
+            // Initialize with inactive state
             const inactiveValue: 0 | 1 = config.activeHigh ? 0 : 1;
+            const activeValue: 0 | 1 = config.activeHigh ? 1 : 0;
+            
+            const gpio = new RIOClass(stopPin, 'output', { value: inactiveValue });
 
             try {
-              gpio.writeSync(activeValue);
+              gpio.write(activeValue);
               await new Promise((resolve) => setTimeout(resolve, config.pulseDurationMs));
-              gpio.writeSync(inactiveValue);
+              gpio.write(inactiveValue);
             } finally {
-              gpio.unexport();
+              gpio.close();
             }
           }
         }
@@ -367,9 +376,9 @@ export class GpioDriver extends BaseDriver {
     const abortController = new AbortController();
     
     try {
-      const Gpio = await loadGpioLibrary();
+      const RIOClass = await loadGpioLibrary();
       
-      if (!Gpio) {
+      if (!RIOClass) {
         // Fall back to simulation if library not available
         return this.simulateGpio(gate, action, pin, config);
       }
@@ -387,13 +396,12 @@ export class GpioDriver extends BaseDriver {
         'Executing GPIO operation'
       );
 
-      // Initialize GPIO pin
-      // Start in inactive state based on activeHigh setting
-      const initialState = config.activeHigh ? 'low' : 'high';
-      const gpio = new Gpio(pin, initialState as any);
-      
+      // Determine active/inactive values based on activeHigh setting
       const activeValue: 0 | 1 = config.activeHigh ? 1 : 0;
       const inactiveValue: 0 | 1 = config.activeHigh ? 0 : 1;
+
+      // Initialize GPIO pin with inactive state
+      const gpio = new RIOClass(pin, 'output', { value: inactiveValue });
 
       // Track active operation for safety checks (CRITICAL for open/close mutual exclusion)
       // Store GPIO reference so stop can release the pin
@@ -410,7 +418,7 @@ export class GpioDriver extends BaseDriver {
 
       try {
         // Set active state (for activeHigh=false, this sets pin LOW to close relay)
-        gpio.writeSync(activeValue);
+        gpio.write(activeValue);
         
         // Hold for the configured duration (interruptible via abort)
         await new Promise<void>((resolve, reject) => {
@@ -422,7 +430,7 @@ export class GpioDriver extends BaseDriver {
         });
         
         // Set inactive state (releases the relay)
-        gpio.writeSync(inactiveValue);
+        gpio.write(inactiveValue);
         
         logger.info(
           { gateId: gate.id, action, pin, durationMs: duration },
@@ -449,14 +457,14 @@ export class GpioDriver extends BaseDriver {
       } finally {
         // Clear active operation tracking
         if (action === 'open' || action === 'close') {
-          // Only unexport if we weren't aborted (stop handler handles that case)
+          // Only close if we weren't aborted (stop handler handles that case)
           if (!abortController.signal.aborted) {
-            gpio.unexport();
+            gpio.close();
           }
           activeGateOperations.delete(gate.id);
         } else {
-          // For non-open/close actions (toggle), always unexport
-          gpio.unexport();
+          // For non-open/close actions (toggle), always close
+          gpio.close();
         }
       }
     } catch (err) {

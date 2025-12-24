@@ -68,8 +68,10 @@ services:
     volumes:
       - ./config:/app/config:ro
       - ./config/history:/app/config/history
-      # Sysfs GPIO access for onoff library
-      - /sys:/sys
+    # Device access for rpi-io GPIO library (libgpiod)
+    devices:
+      - /dev/gpiochip0:/dev/gpiochip0
+      - /dev/gpiomem:/dev/gpiomem
     networks:
       - edge
       - internal
@@ -78,10 +80,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # GPIO access on Raspberry Pi
-    privileged: true
-    devices:
-      - /dev/gpiomem:/dev/gpiomem
+    # GPIO access on Raspberry Pi via libgpiod (no privileged needed)
+    # privileged: true  # Not needed with device mounts
 
   # PostgreSQL Database
   postgres:
