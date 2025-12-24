@@ -28,7 +28,8 @@ export async function executeGateCommand(gate: Gate, action: GateAction): Promis
   const gateId = gate.id;
 
   // Check for execution lock (mutual exclusion)
-  if (executionLocks.has(gateId)) {
+  // EXCEPTION: 'stop' action bypasses the lock - it's meant to interrupt active operations
+  if (executionLocks.has(gateId) && action !== 'stop') {
     logger.warn({ gateId, action }, 'Gate command rejected: another command is in progress');
     return {
       success: false,
