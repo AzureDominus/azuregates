@@ -46,6 +46,7 @@ locations:
             capabilities:
               - open
               - close
+              - stop
             config:
               openPin: 2
               closePin: 3
@@ -71,6 +72,7 @@ locations:
             capabilities:
               - open
               - close
+              - stop
             config:
               openPin: 14
               closePin: 15
