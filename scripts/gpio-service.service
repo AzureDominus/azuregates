@@ -1,0 +1,20 @@
+[Unit]
+Description=AzureGates GPIO Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=gpio
+WorkingDirectory=/opt/gates/scripts
+ExecStart=/usr/bin/python3 /opt/gates/scripts/gpio_service.py --port 5000 --host 127.0.0.1
+Restart=always
+RestartSec=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gpio-service
+
+[Install]
+WantedBy=multi-user.target
