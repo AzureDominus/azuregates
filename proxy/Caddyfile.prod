@@ -26,8 +26,8 @@ gates.local, garagepi.local, localhost, {$HOSTNAME:gates.home} {
         }
     }
 
-    # Authentik authentication
-    handle /auth/* {
+    # Authentik authentication - strip /auth prefix and forward to Authentik root
+    handle_path /auth/* {
         reverse_proxy authentik:9000 {
             header_up X-Forwarded-Proto {scheme}
             header_up X-Real-IP {remote_host}
