@@ -3,12 +3,15 @@ FROM node:24-alpine AS builder
 
 WORKDIR /app
 
+# Install build dependencies for native modules (rpi-io)
+RUN apk add --no-cache python3 make g++ libgpiod libgpiod-dev
+
 # Copy package files
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install dependencies
-RUN npm ci
+# Install dependencies (including optional for TypeScript type checking)
+RUN npm ci --include=optional
 
 # Generate Prisma client
 RUN npx prisma generate
