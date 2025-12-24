@@ -83,8 +83,19 @@ export async function oidcRoutes(app: FastifyInstance) {
       const session = request.session as any;
       session.returnTo = request.query.returnTo || '/';
 
+      // Determine the base URL and auth URL based on the incoming request
+      // Check if request is from configured BASE_URL (remote) or local access
+      const requestHost = request.headers.host || '';
+      const baseUrlHost = new URL(config.baseUrl).host;
+      const isRemoteAccess = requestHost === baseUrlHost || !!request.headers['cf-ray'];
+      
+      const effectiveBaseUrl = isRemoteAccess ? config.baseUrl : `https://${requestHost}`;
+      const effectiveAuthUrl = isRemoteAccess 
+        ? config.authentik.externalUrl 
+        : `http://${requestHost.replace(':443', '').replace(':80', '')}:9000`;
+
       // Build authorization URL
-      const redirectUri = `${config.baseUrl}/api/auth/callback`;
+      const redirectUri = `${effectiveBaseUrl}/api/auth/callback`;
       const authUrl = openidClient.buildAuthorizationUrl(oidc, {
         redirect_uri: redirectUri,
         scope: 'openid profile email groups',
@@ -96,10 +107,10 @@ export async function oidcRoutes(app: FastifyInstance) {
       // Replace internal Authentik URL with external URL for browser redirect
       const externalAuthUrl = authUrl.href.replace(
         config.authentik.url,
-        config.authentik.externalUrl
+        effectiveAuthUrl
       );
 
-      logger.info({ authUrl: externalAuthUrl }, 'Redirecting to OIDC provider');
+      logger.info({ authUrl: externalAuthUrl, isRemoteAccess }, 'Redirecting to OIDC provider');
       return reply.redirect(externalAuthUrl);
     } catch (err) {
       logger.error({ err }, 'Failed to initiate OIDC login');
@@ -114,10 +125,17 @@ export async function oidcRoutes(app: FastifyInstance) {
   app.get('/callback', async (request: FastifyRequest<{ Querystring: Record<string, string> }>, reply: FastifyReply) => {
     try {
       const oidc = await getOidcConfig();
-      const redirectUri = `${config.baseUrl}/api/auth/callback`;
+      
+      // Determine base URL dynamically based on incoming request
+      const requestHost = request.headers.host || '';
+      const baseUrlHost = new URL(config.baseUrl).host;
+      const isRemoteAccess = requestHost === baseUrlHost || !!request.headers['cf-ray'];
+      const effectiveBaseUrl = isRemoteAccess ? config.baseUrl : `https://${requestHost}`;
+      
+      const redirectUri = `${effectiveBaseUrl}/api/auth/callback`;
 
       // Exchange code for tokens
-      const currentUrl = new URL(request.url, config.baseUrl);
+      const currentUrl = new URL(request.url, effectiveBaseUrl);
       const tokens = await openidClient.authorizationCodeGrant(oidc, currentUrl, {
         expectedState: request.query.state as any,
         pkceCodeVerifier: codeVerifier!,
