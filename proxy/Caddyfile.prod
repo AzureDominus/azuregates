@@ -1,5 +1,5 @@
 # Production Caddy Configuration for Gates Application
-# Supports both local access via mDNS and optional remote access via Cloudflare
+# Supports both local access via mDNS and remote access via Cloudflare Tunnel
 
 {
     # Enable admin API for health checks
@@ -7,33 +7,86 @@
 
     # Production settings
     email {$ACME_EMAIL:admin@localhost}
-    
-    # For local-only deployment without Let's Encrypt
-    # Uncomment the following line if not using HTTPS
-    # auto_https off
 }
 
-# Local access via mDNS hostname and custom domain (via Cloudflare Tunnel)
-# CUSTOM_DOMAIN env var enables remote access, e.g., CUSTOM_DOMAIN=gates.aztelar.com
-gates.local, garagepi.local, localhost, {$HOSTNAME:gates.home}, {$CUSTOM_DOMAIN:_.disabled} {
-    # Use self-signed cert for local HTTPS (Cloudflare handles public SSL via tunnel)
+# HTTP-only for Cloudflare Tunnel (tunnel handles SSL termination)
+# The :80 prefix creates an HTTP-only listener without auto-HTTPS redirect
+:80 {
+    # Only respond to requests with the custom domain or Cloudflare headers
+    @cloudflare {
+        header Cf-Ray *
+    }
+    @local {
+        not header Cf-Ray *
+    }
+
+    # Redirect local HTTP to HTTPS
+    handle @local {
+        redir https://{host}{uri} permanent
+    }
+
+    # Handle Cloudflare tunnel requests (already SSL terminated)
+    handle @cloudflare {
+        # Backend API
+        handle /api/* {
+            reverse_proxy backend:3001 {
+                header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+            }
+        }
+
+        # Authentik authentication - strip /auth prefix
+        handle_path /auth/* {
+            reverse_proxy authentik:9000 {
+                header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+            }
+        }
+
+        # Authentik outpost
+        handle /outpost.goauthentik.io/* {
+            reverse_proxy authentik:9000
+        }
+
+        # Health check
+        handle /health {
+            reverse_proxy backend:3001
+        }
+
+        # Frontend
+        handle {
+            reverse_proxy frontend:80
+        }
+
+        # Security headers
+        header {
+            X-Content-Type-Options nosniff
+            X-Frame-Options DENY
+            Referrer-Policy strict-origin-when-cross-origin
+            Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+        }
+    }
+
+    log {
+        output stdout
+        format json
+        level INFO
+    }
+}
+
+# HTTPS for local mDNS access (self-signed certs)
+gates.local, garagepi.local, localhost, {$HOSTNAME:gates.home} {
     tls internal
 
     # Backend API
     handle /api/* {
-        reverse_proxy backend:3001 {
-            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-        }
+        reverse_proxy backend:3001
     }
 
-    # Authentik authentication - strip /auth prefix and forward to Authentik root
+    # Authentik authentication - strip /auth prefix
     handle_path /auth/* {
-        reverse_proxy authentik:9000 {
-            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-        }
+        reverse_proxy authentik:9000
     }
 
-    # Authentik outpost (if using forward auth)
+    # Authentik outpost
     handle /outpost.goauthentik.io/* {
         reverse_proxy authentik:9000
     }
@@ -43,22 +96,19 @@ gates.local, garagepi.local, localhost, {$HOSTNAME:gates.home}, {$CUSTOM_DOMAIN:
         reverse_proxy backend:3001
     }
 
-    # Frontend (production nginx serving built files)
+    # Frontend
     handle {
         reverse_proxy frontend:80
     }
 
     # Security headers
     header {
-        # Prevent XSS
         X-Content-Type-Options nosniff
         X-Frame-Options DENY
         Referrer-Policy strict-origin-when-cross-origin
-        # CSP - adjust as needed
         Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
     }
 
-    # Logging
     log {
         output stdout
         format json
