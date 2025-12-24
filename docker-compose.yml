@@ -41,9 +41,16 @@ services:
       - AUTHENTIK_URL=http://authentik:9000
       - AUTHENTIK_CLIENT_ID=${AUTHENTIK_CLIENT_ID}
       - AUTHENTIK_CLIENT_SECRET=${AUTHENTIK_CLIENT_SECRET}
+      # GPIO Configuration (Raspberry Pi)
+      - GPIO_AVAILABLE=${GPIO_AVAILABLE:-true}
     volumes:
       - ./config:/app/config:ro
       - ./config/history:/app/config/history
+    # Device access for GPIO (Raspberry Pi with libgpiod)
+    # These mounts are optional - container runs without them (simulation mode)
+    devices:
+      - /dev/gpiochip0:/dev/gpiochip0
+      - /dev/gpiomem:/dev/gpiomem
     networks:
       - edge
       - internal
