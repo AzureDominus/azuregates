@@ -52,6 +52,7 @@ services:
       # Authentik OIDC Configuration
       - AUTHENTIK_URL=${AUTHENTIK_URL:-https://authentik:9443}
       - AUTHENTIK_EXTERNAL_URL=${AUTHENTIK_EXTERNAL_URL:-http://gates.local/auth}
+      - AUTHENTIK_LOCAL_URL=${AUTHENTIK_LOCAL_URL:-https://garagepi.local:9443}
       - AUTHENTIK_CLIENT_ID=${AUTHENTIK_CLIENT_ID}
       - AUTHENTIK_CLIENT_SECRET=${AUTHENTIK_CLIENT_SECRET}
       - AUTHENTIK_SLUG=${AUTHENTIK_SLUG:-azure-gates}

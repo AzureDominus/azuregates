@@ -8,6 +8,7 @@ const envSchema = z.object({
   SESSION_SECRET: z.string().min(32),
   AUTHENTIK_URL: z.string().url(),
   AUTHENTIK_EXTERNAL_URL: z.string().url().optional(),
+  AUTHENTIK_LOCAL_URL: z.string().url().optional(),
   AUTHENTIK_CLIENT_ID: z.string(),
   AUTHENTIK_CLIENT_SECRET: z.string(),
   AUTHENTIK_SLUG: z.string().default('azure-gates'),
@@ -42,6 +43,7 @@ export const config = {
   authentik: {
     url: parsed.data.AUTHENTIK_URL,
     externalUrl: parsed.data.AUTHENTIK_EXTERNAL_URL || parsed.data.AUTHENTIK_URL,
+    localUrl: parsed.data.AUTHENTIK_LOCAL_URL || parsed.data.AUTHENTIK_EXTERNAL_URL || parsed.data.AUTHENTIK_URL,
     clientId: parsed.data.AUTHENTIK_CLIENT_ID,
     clientSecret: parsed.data.AUTHENTIK_CLIENT_SECRET,
     slug: parsed.data.AUTHENTIK_SLUG,
