@@ -274,6 +274,29 @@ export async function gatesRoutes(app: FastifyInstance) {
       try {
         const result = await executeGateCommand(gate, action);
 
+        // Check if the driver reported failure
+        if (!result.success) {
+          await logAudit({
+            userId,
+            gateId,
+            action,
+            result: 'failure',
+            errorMessage: result.message,
+            clientIp,
+            userAgent,
+            latencyMs: Date.now() - startTime,
+            metadata: { ...result } as Record<string, unknown>,
+          });
+
+          return reply.status(400).send({
+            success: false,
+            gate: { id: gate.id, name: gate.name },
+            action,
+            error: result.message,
+            result,
+          });
+        }
+
         await logAudit({
           userId,
           gateId,

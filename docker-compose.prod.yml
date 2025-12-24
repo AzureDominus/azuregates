@@ -68,6 +68,8 @@ services:
     volumes:
       - ./config:/app/config:ro
       - ./config/history:/app/config/history
+      # Sysfs GPIO access for onoff library
+      - /sys:/sys
     networks:
       - edge
       - internal
