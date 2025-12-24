@@ -71,41 +71,38 @@ gates.local, localhost, {$HOSTNAME:gates.home} {
     }
 }
 
-# If using a custom domain with Cloudflare Tunnel
-# Replace with your actual domain
-{$CUSTOM_DOMAIN:} {
-    # Let Caddy handle HTTPS (or Cloudflare handles it at edge)
-    
-    # Same configuration as above
-    handle /api/* {
-        reverse_proxy backend:3001 {
-            header_up X-Forwarded-Proto {scheme}
-            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-        }
-    }
-
-    handle /auth/* {
-        reverse_proxy authentik:9000 {
-            header_up X-Forwarded-Proto {scheme}
-            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-        }
-    }
-
-    handle {
-        reverse_proxy frontend:80 {
-            header_up X-Forwarded-Proto {scheme}
-        }
-    }
-
-    header {
-        X-Content-Type-Options nosniff
-        X-Frame-Options DENY
-        Referrer-Policy strict-origin-when-cross-origin
-    }
-
-    log {
-        output stdout
-        format json
-        level INFO
-    }
-}
+# Custom domain support (only active when CUSTOM_DOMAIN env var is set)
+# To enable: set CUSTOM_DOMAIN=yourdomain.com in your environment
+# {$CUSTOM_DOMAIN} {
+#     handle /api/* {
+#         reverse_proxy backend:3001 {
+#             header_up X-Forwarded-Proto {scheme}
+#             header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+#         }
+#     }
+#
+#     handle /auth/* {
+#         reverse_proxy authentik:9000 {
+#             header_up X-Forwarded-Proto {scheme}
+#             header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+#         }
+#     }
+#
+#     handle {
+#         reverse_proxy frontend:80 {
+#             header_up X-Forwarded-Proto {scheme}
+#         }
+#     }
+#
+#     header {
+#         X-Content-Type-Options nosniff
+#         X-Frame-Options DENY
+#         Referrer-Policy strict-origin-when-cross-origin
+#     }
+#
+#     log {
+#         output stdout
+#         format json
+#         level INFO
+#     }
+# }
