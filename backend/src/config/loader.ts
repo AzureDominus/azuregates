@@ -52,7 +52,14 @@ export function getConfig(): GatesConfig | null {
 async function syncConfigToDatabase(gatesConfig: GatesConfig): Promise<void> {
   logger.info('Syncing configuration to database...');
   
+  // Collect all IDs from YAML to identify orphaned records
+  const locationIds: string[] = [];
+  const areaIds: string[] = [];
+  const gateIds: string[] = [];
+  
   for (const location of gatesConfig.locations) {
+    locationIds.push(location.id);
+    
     await prisma.location.upsert({
       where: { id: location.id },
       create: {
@@ -69,6 +76,8 @@ async function syncConfigToDatabase(gatesConfig: GatesConfig): Promise<void> {
     });
     
     for (const area of location.areas ?? []) {
+      areaIds.push(area.id);
+      
       await prisma.area.upsert({
         where: { id: area.id },
         create: {
@@ -87,6 +96,8 @@ async function syncConfigToDatabase(gatesConfig: GatesConfig): Promise<void> {
       });
       
       for (const gate of area.gates ?? []) {
+        gateIds.push(gate.id);
+        
         await prisma.gate.upsert({
           where: { id: gate.id },
           create: {
@@ -111,6 +122,29 @@ async function syncConfigToDatabase(gatesConfig: GatesConfig): Promise<void> {
         });
       }
     }
+  }
+  
+  // Delete orphaned records not in YAML config
+  // Order matters: gates first (due to FK constraints), then areas, then locations
+  const deletedGates = await prisma.gate.deleteMany({
+    where: { id: { notIn: gateIds } },
+  });
+  if (deletedGates.count > 0) {
+    logger.info({ count: deletedGates.count }, 'Deleted orphaned gates not in config');
+  }
+  
+  const deletedAreas = await prisma.area.deleteMany({
+    where: { id: { notIn: areaIds } },
+  });
+  if (deletedAreas.count > 0) {
+    logger.info({ count: deletedAreas.count }, 'Deleted orphaned areas not in config');
+  }
+  
+  const deletedLocations = await prisma.location.deleteMany({
+    where: { id: { notIn: locationIds } },
+  });
+  if (deletedLocations.count > 0) {
+    logger.info({ count: deletedLocations.count }, 'Deleted orphaned locations not in config');
   }
   
   logger.info('Configuration synced to database');
