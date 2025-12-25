@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Loader2, AlertCircle, CheckCircle, DoorOpen } from 'lucide-react';
@@ -11,6 +11,7 @@ export function GuestAccess() {
   const token = searchParams.get('token');
   const { refetch: refetchAuth } = useAuth();
   const [redeemed, setRedeemed] = useState(false);
+  const attemptedRef = useRef(false);
 
   // Redeem the token
   const redeemMutation = useMutation({
@@ -36,12 +37,13 @@ export function GuestAccess() {
     enabled: redeemed && !!scope,
   });
 
-  // Redeem token on mount
+  // Redeem token on mount - only attempt once
   useEffect(() => {
-    if (token && !redeemed && !redeemMutation.isPending) {
+    if (token && !attemptedRef.current) {
+      attemptedRef.current = true;
       redeemMutation.mutate(token);
     }
-  }, [token, redeemed, redeemMutation]);
+  }, [token]);
 
   if (!token) {
     return (
