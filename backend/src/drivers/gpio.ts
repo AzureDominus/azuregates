@@ -1,14 +1,9 @@
 import type { Gate } from '@prisma/client';
 import { z } from 'zod';
-import { existsSync } from 'fs';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { BaseDriver, type DriverResult } from './base.js';
 import type { GateAction, GpioDriverConfig } from '../config/schema.js';
 import { logger } from '../lib/logger.js';
 import { getConfig } from '../config/loader.js';
-
-const execAsync = promisify(exec);
 
 const gpioConfigSchema = z.object({
   openPin: z.number().int().min(0).max(40).optional(),
@@ -20,28 +15,30 @@ const gpioConfigSchema = z.object({
   activeHigh: z.boolean().default(false),
 });
 
-// Check if we're running on hardware with GPIO support (libgpiod)
-const hasGpioDevice = process.env.GPIO_AVAILABLE === 'true' || 
-  (process.platform === 'linux' && existsSync('/dev/gpiochip0'));
+// GPIO service URL - Python service running on host
+const GPIO_SERVICE_URL = process.env.GPIO_SERVICE_URL || 'http://host.docker.internal:5000';
 
-// Check if gpioset command is available
-let hasGpiosetCommand: boolean | null = null;
+// In development mode (no GPIO service), we simulate the GPIO operations
+const isSimulated = process.env.NODE_ENV === 'development';
 
-async function checkGpiosetAvailable(): Promise<boolean> {
-  if (hasGpiosetCommand !== null) return hasGpiosetCommand;
+// Check if GPIO service is reachable
+let gpioServiceAvailable: boolean | null = null;
+
+async function checkGpioServiceAvailable(): Promise<boolean> {
+  if (gpioServiceAvailable !== null) return gpioServiceAvailable;
   try {
-    await execAsync('which gpioset');
-    hasGpiosetCommand = true;
-    logger.info('GPIO: gpioset command available');
-  } catch {
-    hasGpiosetCommand = false;
-    logger.warn('GPIO: gpioset command not found');
+    const response = await fetch(`${GPIO_SERVICE_URL}/health`, { 
+      method: 'GET',
+      signal: AbortSignal.timeout(2000)
+    });
+    gpioServiceAvailable = response.ok;
+    logger.info({ url: GPIO_SERVICE_URL }, 'GPIO: HTTP service available');
+  } catch (err) {
+    gpioServiceAvailable = false;
+    logger.warn({ url: GPIO_SERVICE_URL, err }, 'GPIO: HTTP service not reachable');
   }
-  return hasGpiosetCommand;
+  return gpioServiceAvailable;
 }
-
-// In development mode (no actual GPIO), we simulate the GPIO operations
-const isSimulated = process.env.NODE_ENV === 'development' || !hasGpioDevice;
 
 // Track active operations per gate to prevent simultaneous open/close
 // This is CRITICAL for safety - we must NEVER activate open and close simultaneously
@@ -58,51 +55,48 @@ const activeGateOperations: Map<string, ActiveOperation> = new Map();
 const gateMutexes: Map<string, Promise<void>> = new Map();
 
 /**
- * Execute gpioset command to pulse a GPIO pin.
- * Uses libgpiod v2 CLI syntax with --toggle for automatic pulse.
- * 
- * For activeHigh=false (active-low relay): pulse to 0 (LOW) to activate
- * For activeHigh=true (active-high): pulse to 1 (HIGH) to activate
+ * Call the GPIO service to pulse a pin.
+ * The Python service handles the actual GPIO control via RPi.GPIO.
  * 
  * @param pin - GPIO pin number (BCM numbering)
  * @param durationMs - Duration to hold the active state in milliseconds
  * @param activeHigh - Whether the active state is HIGH (true) or LOW (false)
  */
-async function executeGpioset(pin: number, durationMs: number, activeHigh: boolean): Promise<void> {
-  // For active-low relay: active value is 0 (LOW), for active-high: active value is 1 (HIGH)
-  const activeValue = activeHigh ? 1 : 0;
+async function callGpioServicePulse(pin: number, durationMs: number, activeHigh: boolean): Promise<void> {
+  const response = await fetch(`${GPIO_SERVICE_URL}/pulse`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      pin,
+      duration_ms: durationMs,
+      active_low: !activeHigh,  // Invert for active_low parameter
+    }),
+  });
   
-  // gpioset v2 syntax: --toggle toggles the pin after hold-period expires
-  // This sets pin to activeValue, waits durationMs, then toggles back
-  const cmd = `gpioset --chip gpiochip0 --hold-period ${durationMs}ms --toggle 0 ${pin}=${activeValue}`;
+  const result = await response.json();
   
-  logger.debug({ cmd, pin, durationMs, activeHigh, activeValue }, 'Executing gpioset command');
-  
-  const { stdout, stderr } = await execAsync(cmd);
-  
-  if (stderr) {
-    logger.warn({ stderr, cmd }, 'gpioset produced stderr output');
+  if (!response.ok || !result.success) {
+    throw new Error(result.error || `GPIO service returned ${response.status}`);
   }
-  if (stdout) {
-    logger.debug({ stdout, cmd }, 'gpioset stdout');
-  }
+  
+  logger.debug({ pin, durationMs, activeHigh, result }, 'GPIO pulse via HTTP service');
 }
 
 /**
- * Force a GPIO pin to a specific value (used for stop/abort operations).
- * Uses gpioset with a very short pulse to set the inactive state.
+ * Force a GPIO pin to inactive state (used for stop/abort operations).
  */
 async function forceGpioInactive(pin: number, activeHigh: boolean): Promise<void> {
-  const inactiveValue = activeHigh ? 0 : 1;
-  // Quick pulse to inactive - 1ms is enough to set the state
-  const cmd = `gpioset --chip gpiochip0 --hold-period 1ms --toggle 0 ${pin}=${inactiveValue}`;
-  
-  logger.debug({ cmd, pin, inactiveValue }, 'Forcing GPIO to inactive state');
-  
   try {
-    await execAsync(cmd);
+    const response = await fetch(`${GPIO_SERVICE_URL}/stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin }),
+    });
+    
+    const result = await response.json();
+    logger.debug({ pin, result }, 'Forced GPIO to inactive via HTTP service');
   } catch (err) {
-    logger.warn({ err, cmd, pin }, 'Failed to force GPIO inactive');
+    logger.warn({ err, pin }, 'Failed to force GPIO inactive');
   }
 }
 
@@ -188,12 +182,12 @@ export class GpioDriver extends BaseDriver {
       // Signal the abort to interrupt the hold timer
       activeOp.abortController.abort();
 
-      // Force the active pin to inactive state using gpioset
+      // Force the active pin to inactive state via GPIO service
       const gatesConfig = getConfig();
       const isMaintenanceMode = gatesConfig?.settings?.maintenanceMode ?? false;
       const shouldSimulate = isSimulated || isMaintenanceMode;
       
-      if (!shouldSimulate && await checkGpiosetAvailable()) {
+      if (!shouldSimulate && await checkGpioServiceAvailable()) {
         try {
           await forceGpioInactive(activeOp.pin, activeOp.config.activeHigh);
           logger.info(
@@ -227,14 +221,14 @@ export class GpioDriver extends BaseDriver {
           // Simulate the stop pin pulse
           await new Promise((resolve) => setTimeout(resolve, config.pulseDurationMs));
           logger.info({ gateId: gate.id, stopPin, simulated: true, maintenanceMode: isMaintenanceMode }, 'Simulated stop pin pulse');
-        } else if (await checkGpiosetAvailable()) {
-          // Use gpioset to pulse the stop pin
-          await executeGpioset(stopPin, config.pulseDurationMs, config.activeHigh);
-          logger.info({ gateId: gate.id, stopPin, durationMs: config.pulseDurationMs }, 'Pulsed stop pin via gpioset');
+        } else if (await checkGpioServiceAvailable()) {
+          // Use GPIO service to pulse the stop pin
+          await callGpioServicePulse(stopPin, config.pulseDurationMs, config.activeHigh);
+          logger.info({ gateId: gate.id, stopPin, durationMs: config.pulseDurationMs }, 'Pulsed stop pin via GPIO service');
         } else {
-          // Simulate if gpioset not available
+          // Simulate if GPIO service not available
           await new Promise((resolve) => setTimeout(resolve, config.pulseDurationMs));
-          logger.info({ gateId: gate.id, stopPin, simulated: true, reason: 'gpioset not available' }, 'Simulated stop pin pulse');
+          logger.info({ gateId: gate.id, stopPin, simulated: true, reason: 'GPIO service not available' }, 'Simulated stop pin pulse');
         }
         pulsedStopPin = true;
       } catch (err) {
@@ -401,12 +395,12 @@ export class GpioDriver extends BaseDriver {
     const abortController = new AbortController();
     
     try {
-      // Check if gpioset is available
-      const gpiosetAvailable = await checkGpiosetAvailable();
+      // Check if GPIO service is available
+      const gpioServiceReachable = await checkGpioServiceAvailable();
       
-      if (!gpiosetAvailable) {
-        // Fall back to simulation if gpioset not available
-        logger.warn({ gateId: gate.id }, 'gpioset not available, falling back to simulation');
+      if (!gpioServiceReachable) {
+        // Fall back to simulation if GPIO service not available
+        logger.warn({ gateId: gate.id }, 'GPIO service not available, falling back to simulation');
         return this.simulateGpio(gate, action, pin, config);
       }
 
@@ -420,7 +414,7 @@ export class GpioDriver extends BaseDriver {
           holdDurationMs: config.holdDurationMs, 
           activeHigh: config.activeHigh 
         },
-        'Executing GPIO operation via gpioset'
+        'Executing GPIO operation via HTTP service'
       );
 
       // Track active operation for safety checks (CRITICAL for open/close mutual exclusion)
@@ -435,9 +429,8 @@ export class GpioDriver extends BaseDriver {
       }
 
       try {
-        // Execute the gpioset command - it handles the pulse timing internally
-        // The command will block until the hold-period expires and pin toggles back
-        await executeGpioset(pin, duration, config.activeHigh);
+        // Call the GPIO service - it handles the pulse timing
+        await callGpioServicePulse(pin, duration, config.activeHigh);
         
         logger.info(
           { gateId: gate.id, action, pin, durationMs: duration },

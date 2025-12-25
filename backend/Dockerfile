@@ -1,6 +1,6 @@
 # Production Dockerfile
-# Using Alpine with libgpiod CLI tools (gpioset/gpioget)
-# No native GPIO library compilation needed - we shell out to gpioset
+# GPIO control is handled by a Python service running on the host
+# The backend calls the GPIO service via HTTP, no GPIO libraries needed in container
 FROM node:24-alpine AS builder
 
 WORKDIR /app
@@ -31,8 +31,7 @@ FROM node:24-alpine
 WORKDIR /app
 
 # Install dumb-init for proper signal handling
-# Install libgpiod for gpioset/gpioget CLI tools
-RUN apk add --no-cache dumb-init libgpiod
+RUN apk add --no-cache dumb-init
 
 # Copy package files and install production deps only
 COPY package*.json ./
@@ -45,12 +44,10 @@ RUN npx prisma generate
 # Copy built files
 COPY --from=builder /app/dist ./dist
 
-# NOTE: Running as root is required for GPIO access on Raspberry Pi
-# The container needs /dev/gpiochip0 device mount
-# If not using GPIO, you can uncomment the lines below for security:
-# RUN addgroup --gid 1001 nodejs && \
-#     adduser --uid 1001 --gid 1001 --disabled-password nodejs
-# USER nodejs
+# Run as non-root user for security (no GPIO device access needed)
+RUN addgroup --gid 1001 nodejs && \
+    adduser --uid 1001 --gid 1001 --disabled-password nodejs
+USER nodejs
 
 EXPOSE 3001
 

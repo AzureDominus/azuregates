@@ -41,16 +41,14 @@ services:
       - AUTHENTIK_URL=http://authentik:9000
       - AUTHENTIK_CLIENT_ID=${AUTHENTIK_CLIENT_ID}
       - AUTHENTIK_CLIENT_SECRET=${AUTHENTIK_CLIENT_SECRET}
-      # GPIO Configuration (Raspberry Pi)
-      - GPIO_AVAILABLE=${GPIO_AVAILABLE:-true}
+      # GPIO Service - Python service running on host for GPIO control
+      - GPIO_SERVICE_URL=${GPIO_SERVICE_URL:-http://172.17.0.1:5000}
     volumes:
       - ./config:/app/config:ro
       - ./config/history:/app/config/history
-    # Device access for GPIO (Raspberry Pi with libgpiod)
-    # These mounts are optional - container runs without them (simulation mode)
-    devices:
-      - /dev/gpiochip0:/dev/gpiochip0
-      - /dev/gpiomem:/dev/gpiomem
+    # No device mounts needed - GPIO is handled by host Python service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - edge
       - internal
