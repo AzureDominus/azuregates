@@ -40,8 +40,10 @@
 
 # HTTPS site (for production or when TLS is enabled)
 :443 {
-    # Use self-signed cert for local development
-    tls internal
+    # Use self-signed cert for local development with explicit settings
+    tls internal {
+        key_type rsa2048
+    }
 
     # Backend API
     handle /api/* {
