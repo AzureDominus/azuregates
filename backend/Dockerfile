@@ -46,9 +46,9 @@ COPY --from=builder /app/dist ./dist
 
 # Run as non-root user for security (no GPIO device access needed)
 # Use UID 1000 to match the default 'pi' user on Raspberry Pi for config file access
-RUN addgroup -g 1000 nodejs && \
-    adduser -u 1000 -G nodejs -D nodejs
-USER nodejs
+# GID 1000 already exists as 'node' in alpine, so we just create a user with that group
+RUN adduser -u 1000 -G node -D appuser
+USER appuser
 
 EXPOSE 3001
 
