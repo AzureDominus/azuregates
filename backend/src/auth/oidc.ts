@@ -228,18 +228,32 @@ export async function oidcRoutes(app: FastifyInstance) {
       const returnTo = session.returnTo || '/';
       delete session.returnTo;
 
+      // Build absolute redirect URL to ensure we stay on the correct host
+      const buildRedirectUrl = (path: string) => `${effectiveBaseUrl}${path}`;
+
+      logger.info({
+        userId: user.id,
+        isActivated: user.isActivated,
+        returnTo,
+        effectiveBaseUrl,
+        isRemoteAccess,
+      }, 'Callback complete, determining redirect');
+
       // If not activated, redirect to appropriate page
       if (!user.isActivated) {
         // If never activated (activatedAt is null), show pending approval page
         // If was activated before but now disabled, show account disabled page
-        if (user.activatedAt) {
-          return reply.redirect('/account-disabled');
-        } else {
-          return reply.redirect('/pending-approval');
-        }
+        const redirectUrl = user.activatedAt 
+          ? buildRedirectUrl('/account-disabled')
+          : buildRedirectUrl('/pending-approval');
+        logger.info({ redirectUrl }, 'User not activated, redirecting');
+        return reply.redirect(redirectUrl);
       }
 
-      return reply.redirect(returnTo);
+      // Use absolute URL for returnTo redirect as well
+      const finalRedirect = returnTo.startsWith('http') ? returnTo : buildRedirectUrl(returnTo);
+      logger.info({ finalRedirect }, 'User activated, redirecting to returnTo');
+      return reply.redirect(finalRedirect);
     } catch (err) {
       logger.error({ err }, 'OIDC callback failed');
       return reply.redirect('/?error=auth_failed');
