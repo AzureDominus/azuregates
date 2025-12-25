@@ -2,6 +2,18 @@ import { useState, useEffect } from 'react';
 import { X, Save, AlertTriangle } from 'lucide-react';
 import type { ConfigGate } from '../lib/api';
 
+// GPIO config type for type safety
+interface GpioConfig {
+  openPin?: number;
+  closePin?: number;
+  stopPin?: number;
+  togglePin?: number;
+  pulseDurationMs?: number;
+  holdDurationMs?: number;
+  activeHigh?: boolean;
+  url?: string;
+}
+
 interface GateEditorProps {
   gate: ConfigGate;
   onSave: (gate: ConfigGate) => void;
@@ -11,6 +23,9 @@ interface GateEditorProps {
 export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
   const [editedGate, setEditedGate] = useState<ConfigGate>(gate);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Helper to get typed config
+  const getConfig = (): GpioConfig => editedGate.config as GpioConfig;
 
   useEffect(() => {
     setEditedGate(gate);
@@ -25,7 +40,7 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
     }
 
     if (editedGate.driver === 'gpio') {
-      const config = editedGate.config;
+      const config = getConfig();
       const hasOpenClose = config.openPin !== undefined || config.closePin !== undefined;
       const hasToggle = config.togglePin !== undefined;
       
@@ -65,7 +80,7 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
     }
   };
 
-  const updateConfig = (key: string, value: number | boolean | undefined) => {
+  const updateConfig = (key: string, value: number | boolean | string | undefined) => {
     setEditedGate({
       ...editedGate,
       config: {
@@ -177,7 +192,7 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                     type="number"
                     min="0"
                     max="40"
-                    value={editedGate.config.openPin ?? ''}
+                    value={getConfig().openPin ?? ''}
                     onChange={(e) => updateConfig('openPin', e.target.value ? parseInt(e.target.value) : undefined)}
                     placeholder="GPIO #"
                     className={`w-full px-3 py-2 bg-gray-900 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
@@ -192,7 +207,7 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                     type="number"
                     min="0"
                     max="40"
-                    value={editedGate.config.closePin ?? ''}
+                    value={getConfig().closePin ?? ''}
                     onChange={(e) => updateConfig('closePin', e.target.value ? parseInt(e.target.value) : undefined)}
                     placeholder="GPIO #"
                     className={`w-full px-3 py-2 bg-gray-900 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
@@ -206,7 +221,7 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                     type="number"
                     min="0"
                     max="40"
-                    value={editedGate.config.stopPin ?? ''}
+                    value={getConfig().stopPin ?? ''}
                     onChange={(e) => updateConfig('stopPin', e.target.value ? parseInt(e.target.value) : undefined)}
                     placeholder="GPIO #"
                     className={`w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500`}
@@ -218,7 +233,7 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                     type="number"
                     min="0"
                     max="40"
-                    value={editedGate.config.togglePin ?? ''}
+                    value={getConfig().togglePin ?? ''}
                     onChange={(e) => updateConfig('togglePin', e.target.value ? parseInt(e.target.value) : undefined)}
                     placeholder="GPIO #"
                     className={`w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500`}
@@ -233,7 +248,7 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                     type="number"
                     min="50"
                     max="5000"
-                    value={editedGate.config.pulseDurationMs ?? 500}
+                    value={getConfig().pulseDurationMs ?? 500}
                     onChange={(e) => updateConfig('pulseDurationMs', parseInt(e.target.value) || 500)}
                     className={`w-full px-3 py-2 bg-gray-900 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       errors.pulseDurationMs ? 'border-red-500' : 'border-gray-700'
@@ -247,7 +262,7 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                     type="number"
                     min="1000"
                     max="120000"
-                    value={editedGate.config.holdDurationMs ?? ''}
+                    value={getConfig().holdDurationMs ?? ''}
                     onChange={(e) => updateConfig('holdDurationMs', e.target.value ? parseInt(e.target.value) : undefined)}
                     placeholder="Optional"
                     className={`w-full px-3 py-2 bg-gray-900 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
@@ -262,7 +277,7 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={editedGate.config.activeHigh === true}
+                    checked={getConfig().activeHigh === true}
                     onChange={(e) => updateConfig('activeHigh', e.target.checked)}
                     className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-blue-500"
                   />
@@ -283,8 +298,8 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                 <label className="block text-sm text-gray-300 mb-1">Webhook URL</label>
                 <input
                   type="url"
-                  value={(editedGate.config.url as string) ?? ''}
-                  onChange={(e) => updateConfig('url', e.target.value as any)}
+                  value={getConfig().url ?? ''}
+                  onChange={(e) => updateConfig('url', e.target.value)}
                   placeholder="https://example.com/webhook"
                   className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
