@@ -12,6 +12,7 @@ import { oidcRoutes } from './auth/oidc.js';
 import { guestRoutes } from './auth/guest.js';
 import { setupSession } from './auth/session.js';
 import { loadConfig } from './config/loader.js';
+import { startCleanupJob, stopCleanupJob } from './jobs/cleanup.js';
 
 const app = Fastify({
   // Trust proxy headers (X-Forwarded-For, etc) set by Caddy
@@ -86,11 +87,15 @@ try {
   // Continue running - config can be fixed via API
 }
 
+// Start the stale account cleanup job
+startCleanupJob();
+
 // Graceful shutdown
 const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
 signals.forEach((signal) => {
   process.on(signal, async () => {
     app.log.info(`Received ${signal}, shutting down gracefully`);
+    stopCleanupJob();
     await app.close();
     process.exit(0);
   });

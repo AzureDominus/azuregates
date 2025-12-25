@@ -8,6 +8,8 @@ import { Login } from './pages/Login';
 import { GuestAccess } from './pages/GuestAccess';
 import { GuestInvites } from './pages/GuestInvites';
 import { Admin } from './pages/Admin';
+import { PendingApproval } from './pages/PendingApproval';
+import { AccountDisabled } from './pages/AccountDisabled';
 import { AuthProvider } from './lib/auth';
 
 function App() {
@@ -17,6 +19,8 @@ function App() {
         {/* Public routes without layout */}
         <Route path="/login" element={<Login />} />
         <Route path="/guest" element={<GuestAccess />} />
+        <Route path="/pending-approval" element={<PendingApproval />} />
+        <Route path="/account-disabled" element={<AccountDisabled />} />
         
         {/* Routes with layout */}
         <Route element={<LayoutWrapper />}>

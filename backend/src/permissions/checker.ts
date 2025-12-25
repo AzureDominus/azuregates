@@ -112,3 +112,85 @@ export async function revokePermission(permissionId: string) {
     where: { id: permissionId },
   });
 }
+
+/**
+ * Get all gate IDs that a user has any permission for.
+ * Resolves hierarchical permissions: LOCATION -> all gates in location, AREA -> all gates in area.
+ * Admins get access to all gates.
+ * Returns empty set if user has no permissions.
+ */
+export async function getAccessibleGateIds(
+  userId: string | null | undefined,
+  isAdmin?: boolean
+): Promise<Set<string>> {
+  // Admins have access to all gates
+  if (isAdmin) {
+    const allGates = await prisma.gate.findMany({ select: { id: true } });
+    return new Set(allGates.map((g) => g.id));
+  }
+
+  // No user = no access
+  if (!userId) {
+    return new Set();
+  }
+
+  // Get all active (non-expired) permissions for user
+  const permissions = await prisma.userPermission.findMany({
+    where: {
+      userId,
+      OR: [
+        { expiresAt: null },
+        { expiresAt: { gt: new Date() } },
+      ],
+    },
+  });
+
+  if (permissions.length === 0) {
+    return new Set();
+  }
+
+  const accessibleGateIds = new Set<string>();
+
+  // Collect scope IDs by type for batch queries
+  const locationIds: string[] = [];
+  const areaIds: string[] = [];
+
+  for (const perm of permissions) {
+    // Only grant visibility if user has at least one action (not just empty array)
+    if (perm.actions.length === 0) {
+      continue;
+    }
+
+    switch (perm.scopeType) {
+      case ScopeType.GATE:
+        accessibleGateIds.add(perm.scopeId);
+        break;
+      case ScopeType.AREA:
+        areaIds.push(perm.scopeId);
+        break;
+      case ScopeType.LOCATION:
+        locationIds.push(perm.scopeId);
+        break;
+    }
+  }
+
+  // Resolve AREA permissions to gate IDs
+  if (areaIds.length > 0) {
+    const areaGates = await prisma.gate.findMany({
+      where: { areaId: { in: areaIds } },
+      select: { id: true },
+    });
+    areaGates.forEach((g) => accessibleGateIds.add(g.id));
+  }
+
+  // Resolve LOCATION permissions to gate IDs (via areas)
+  if (locationIds.length > 0) {
+    const locationGates = await prisma.gate.findMany({
+      where: { area: { locationId: { in: locationIds } } },
+      select: { id: true },
+    });
+    locationGates.forEach((g) => accessibleGateIds.add(g.id));
+  }
+
+  return accessibleGateIds;
+}

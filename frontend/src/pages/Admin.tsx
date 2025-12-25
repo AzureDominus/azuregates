@@ -8,19 +8,45 @@ import {
   ShieldCheck, 
   Plus, 
   Trash2, 
-  X
+  X,
+  Clock,
+  UserCheck,
+  UserX,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
-import { api, type AdminUser } from '../lib/api';
+import { api, type AdminUser, type PendingUser } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 export function Admin() {
   const { user } = useAuth();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showGrantModal, setShowGrantModal] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data: users, isLoading, error } = useQuery({
     queryKey: ['admin', 'users'],
     queryFn: api.getUsers,
+  });
+
+  const { data: pendingUsers } = useQuery({
+    queryKey: ['admin', 'users', 'pending'],
+    queryFn: api.getPendingUsers,
+  });
+
+  const activateUserMutation = useMutation({
+    mutationFn: api.activateUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: api.deleteUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      setSelectedUserId(null);
+    },
   });
 
   if (!user?.isAdmin) {
@@ -57,6 +83,53 @@ export function Admin() {
           User Management
         </h1>
       </div>
+
+      {/* Pending Users Section */}
+      {pendingUsers && pendingUsers.length > 0 && (
+        <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg">
+          <div className="p-4 border-b border-yellow-700 flex items-center gap-2">
+            <Clock className="w-5 h-5 text-yellow-400" />
+            <h2 className="font-semibold text-yellow-400">Pending Approval ({pendingUsers.length})</h2>
+          </div>
+          <div className="divide-y divide-yellow-700/50">
+            {pendingUsers.map((pu) => (
+              <div key={pu.id} className="p-4 flex items-center justify-between">
+                <div>
+                  <div className="font-medium">{pu.displayName || pu.email || 'Unknown'}</div>
+                  <div className="text-sm text-gray-400">
+                    {pu.email && <span>{pu.email} • </span>}
+                    Signed up {new Date(pu.createdAt).toLocaleDateString()}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => activateUserMutation.mutate(pu.id)}
+                    disabled={activateUserMutation.isPending}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-500 rounded text-sm font-medium transition-colors disabled:opacity-50"
+                    title="Approve user"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm('Delete this pending user? This cannot be undone.')) {
+                        deleteUserMutation.mutate(pu.id);
+                      }
+                    }}
+                    disabled={deleteUserMutation.isPending}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded text-sm font-medium transition-colors disabled:opacity-50"
+                    title="Reject and delete"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* User List */}
@@ -123,12 +196,14 @@ function UserRow({
     >
       <div className="flex items-center gap-3">
         <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-          user.isAdmin ? 'bg-blue-600' : 'bg-gray-600'
+          user.isAdmin ? 'bg-blue-600' : user.isActivated ? 'bg-gray-600' : 'bg-yellow-600'
         }`}>
           {user.isAdmin ? (
             <ShieldCheck className="w-4 h-4" />
+          ) : user.isActivated ? (
+            <UserCheck className="w-4 h-4" />
           ) : (
-            <Users className="w-4 h-4" />
+            <Clock className="w-4 h-4" />
           )}
         </div>
         <div>
@@ -140,6 +215,11 @@ function UserRow({
         <span className="text-xs text-gray-500">
           {user._count.permissions} permission{user._count.permissions !== 1 ? 's' : ''}
         </span>
+        {!user.isActivated && !user.isAdmin && (
+          <span className="px-2 py-1 bg-yellow-600 rounded text-xs font-medium" title="Pending approval or disabled">
+            {user.activatedAt ? 'Disabled' : 'Pending'}
+          </span>
+        )}
         {user.isAdmin && (
           <span className="px-2 py-1 bg-blue-600 rounded text-xs font-medium" title="Managed via Authentik groups">
             Admin
@@ -166,6 +246,22 @@ function UserDetails({ userId, onGrantPermission }: { userId: string; onGrantPer
     },
   });
 
+  const activateUserMutation = useMutation({
+    mutationFn: api.activateUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', userId] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+    },
+  });
+
+  const deactivateUserMutation = useMutation({
+    mutationFn: api.deactivateUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', userId] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="p-8 flex justify-center">
@@ -186,11 +282,76 @@ function UserDetails({ userId, onGrantPermission }: { userId: string; onGrantPer
             <h2 className="font-semibold">{user.displayName || 'Unknown'}</h2>
             <p className="text-sm text-gray-400">{user.email}</p>
           </div>
-          {user.isAdmin && (
-            <span className="px-2 py-1 bg-blue-600 rounded text-xs font-medium">Admin</span>
-          )}
+          <div className="flex items-center gap-2">
+            {!user.isActivated && !user.isAdmin && (
+              <span className="px-2 py-1 bg-yellow-600 rounded text-xs font-medium">
+                {user.activatedAt ? 'Disabled' : 'Pending'}
+              </span>
+            )}
+            {user.isAdmin && (
+              <span className="px-2 py-1 bg-blue-600 rounded text-xs font-medium">Admin</span>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Account Status Section */}
+      {!user.isAdmin && (
+        <div className="p-4 border-b border-gray-700">
+          <h3 className="font-medium mb-3">Account Status</h3>
+          <div className="flex items-center justify-between">
+            <div className="text-sm">
+              {user.isActivated ? (
+                <span className="flex items-center gap-2 text-green-400">
+                  <CheckCircle className="w-4 h-4" />
+                  Active
+                </span>
+              ) : user.activatedAt ? (
+                <span className="flex items-center gap-2 text-red-400">
+                  <XCircle className="w-4 h-4" />
+                  Disabled
+                </span>
+              ) : (
+                <span className="flex items-center gap-2 text-yellow-400">
+                  <Clock className="w-4 h-4" />
+                  Pending Approval
+                </span>
+              )}
+            </div>
+            <div>
+              {user.isActivated ? (
+                <button
+                  onClick={() => {
+                    if (confirm('Deactivate this user? They will lose access to the system.')) {
+                      deactivateUserMutation.mutate(userId);
+                    }
+                  }}
+                  disabled={deactivateUserMutation.isPending}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded text-sm transition-colors disabled:opacity-50"
+                >
+                  <UserX className="w-4 h-4" />
+                  Deactivate
+                </button>
+              ) : (
+                <button
+                  onClick={() => activateUserMutation.mutate(userId)}
+                  disabled={activateUserMutation.isPending}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-500 rounded text-sm transition-colors disabled:opacity-50"
+                >
+                  <UserCheck className="w-4 h-4" />
+                  Activate
+                </button>
+              )}
+            </div>
+          </div>
+          {user.activatedAt && (
+            <div className="mt-2 text-xs text-gray-500">
+              First approved: {new Date(user.activatedAt).toLocaleDateString()}
+              {user.activatedBy && ` by ${user.activatedBy}`}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="p-4">
         <div className="flex items-center justify-between mb-3">

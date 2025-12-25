@@ -1,5 +1,5 @@
-import { ReactNode } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { ReactNode, useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Settings, FileText, Shield, LogIn, LogOut, User, Users, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
@@ -17,7 +17,19 @@ const navItems = [
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
-  const { user, isAuthenticated, isGuest, isLoading, login, logout } = useAuth();
+  const navigate = useNavigate();
+  const { user, isAuthenticated, isGuest, isLoading, isPending, isDisabled, login, logout } = useAuth();
+
+  // Redirect pending/disabled accounts to appropriate pages
+  useEffect(() => {
+    if (isLoading) return;
+    
+    if (isPending) {
+      navigate('/pending-approval', { replace: true });
+    } else if (isDisabled) {
+      navigate('/account-disabled', { replace: true });
+    }
+  }, [isPending, isDisabled, isLoading, navigate]);
 
   // Filter nav items based on auth status
   const visibleNavItems = navItems.filter((item) => {

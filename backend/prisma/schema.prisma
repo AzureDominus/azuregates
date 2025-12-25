@@ -17,6 +17,14 @@ model User {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  // Account activation - new accounts require admin approval
+  // isActivated: false = account pending approval or disabled
+  // activatedAt: set when first approved (never cleared on deactivation)
+  // activatedBy: user ID of admin who approved (for audit trail)
+  isActivated Boolean   @default(false) @map("is_activated")
+  activatedAt DateTime? @map("activated_at")
+  activatedBy String?   @map("activated_by")
+
   // Relations
   permissions   UserPermission[]
   invitesCreated Invite[]        @relation("InviteCreator")

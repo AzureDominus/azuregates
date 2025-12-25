@@ -14,6 +14,9 @@ export interface SessionUser {
   isGuest?: boolean;
   guestExpiry?: Date;
   permissions?: string[];
+  // Account activation status
+  isActivated?: boolean;
+  wasEverActivated?: boolean;
 }
 
 // Session data interface
@@ -102,6 +105,45 @@ export async function adminPreHandler(request: FastifyRequest, reply: FastifyRep
   const user = getCurrentUser(request);
   if (!user?.isAdmin) {
     return reply.status(403).send({ error: 'Forbidden', message: 'Admin access required' });
+  }
+}
+
+/**
+ * Fastify preHandler for requiring an activated account.
+ * Should be used after authPreHandler for routes that require activation.
+ * Guests bypass activation check (they have their own scope limits).
+ * Admins always pass (they are auto-activated).
+ */
+export async function activatedPreHandler(request: FastifyRequest, reply: FastifyReply) {
+  await authPreHandler(request, reply);
+  if (reply.sent) return; // Auth already failed
+  
+  const user = getCurrentUser(request);
+  
+  // Guests bypass activation (they have invite-based access)
+  if (user?.isGuest) {
+    return;
+  }
+  
+  // Admins are always allowed (they are auto-activated)
+  if (user?.isAdmin) {
+    return;
+  }
+  
+  // Check activation status
+  if (!user?.isActivated) {
+    // Distinguish between pending approval and disabled account
+    if (user?.wasEverActivated) {
+      return reply.status(403).send({ 
+        error: 'AccountDisabled', 
+        message: 'Your account has been disabled. Please contact an administrator.',
+      });
+    } else {
+      return reply.status(403).send({ 
+        error: 'AccountPending', 
+        message: 'Your account is pending admin approval.',
+      });
+    }
   }
 }
 

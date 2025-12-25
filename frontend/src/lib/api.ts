@@ -180,6 +180,21 @@ export const api = {
   revokePermission: (permissionId: string) =>
     fetchJson<{ success: boolean }>(`/admin/permissions/${permissionId}`, { method: 'DELETE' }),
   getScopes: () => fetchJson<ScopesResponse>('/admin/scopes'),
+  
+  // User activation management
+  getPendingUsers: () => fetchJson<PendingUser[]>('/admin/users/pending'),
+  activateUser: (userId: string) =>
+    fetchJson<{ success: boolean; user: { id: string; isActivated: boolean; activatedAt: string } }>(
+      `/admin/users/${userId}/activate`,
+      { method: 'POST' }
+    ),
+  deactivateUser: (userId: string) =>
+    fetchJson<{ success: boolean; user: { id: string; isActivated: boolean } }>(
+      `/admin/users/${userId}/deactivate`,
+      { method: 'POST' }
+    ),
+  deleteUser: (userId: string) =>
+    fetchJson<{ success: boolean }>(`/admin/users/${userId}`, { method: 'DELETE' }),
 };
 
 // Additional types
@@ -190,6 +205,9 @@ export interface User {
   isAdmin: boolean;
   isGuest: boolean;
   permissions?: string[];
+  // Activation status (added for pending/disabled account handling)
+  isActivated?: boolean;
+  wasEverActivated?: boolean;
 }
 
 // Config types (matching backend schema)
@@ -237,9 +255,21 @@ export interface AdminUser {
   email: string | null;
   displayName: string | null;
   isAdmin: boolean;
+  isActivated: boolean;
+  activatedAt: string | null;
+  activatedBy: string | null;
   createdAt: string;
   updatedAt: string;
   _count: { permissions: number };
+}
+
+export interface PendingUser {
+  id: string;
+  externalId: string;
+  email: string | null;
+  displayName: string | null;
+  isAdmin: boolean;
+  createdAt: string;
 }
 
 export interface UserPermission {
@@ -255,6 +285,9 @@ export interface UserPermission {
 
 export interface AdminUserDetails extends Omit<AdminUser, '_count'> {
   permissions: UserPermission[];
+  isActivated: boolean;
+  activatedAt: string | null;
+  activatedBy: string | null;
 }
 
 export interface GrantPermissionRequest {

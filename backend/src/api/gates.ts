@@ -2,9 +2,9 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { executeGateCommand, getGateStatus, type GateStatus } from '../drivers/executor.js';
-import { checkPermission } from '../permissions/checker.js';
+import { checkPermission, getAccessibleGateIds } from '../permissions/checker.js';
 import { logAudit } from '../audit/logger.js';
-import { getCurrentUser, authPreHandler } from '../auth/session.js';
+import { getCurrentUser, authPreHandler, activatedPreHandler } from '../auth/session.js';
 import { broadcastGateCommand, broadcastGateStatus } from './events.js';
 
 /**
@@ -36,11 +36,15 @@ const commandSchema = z.object({
 });
 
 export async function gatesRoutes(app: FastifyInstance) {
-  // All routes in this module require authentication
-  app.addHook('preHandler', authPreHandler);
+  // All routes in this module require authentication AND an activated account
+  // (except for guests who have their own invite-based access)
+  app.addHook('preHandler', activatedPreHandler);
 
-  // List all locations
+  // List all locations (filtered by user permissions)
   app.get('/locations', async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = getCurrentUser(request);
+    const accessibleGateIds = await getAccessibleGateIds(user?.id, user?.isAdmin);
+
     const locations = await prisma.location.findMany({
       include: {
         areas: {
@@ -50,11 +54,34 @@ export async function gatesRoutes(app: FastifyInstance) {
         },
       },
     });
-    return reply.send(locations);
+
+    // Filter to only show gates user has access to
+    // If user has no accessible gates, return empty array
+    if (accessibleGateIds.size === 0 && !user?.isAdmin) {
+      return reply.send([]);
+    }
+
+    // Filter gates in each area, then filter out empty areas and locations
+    const filteredLocations = locations
+      .map((location) => ({
+        ...location,
+        areas: location.areas
+          .map((area) => ({
+            ...area,
+            gates: area.gates.filter((gate) => accessibleGateIds.has(gate.id)),
+          }))
+          .filter((area) => area.gates.length > 0),
+      }))
+      .filter((location) => location.areas.length > 0);
+
+    return reply.send(filteredLocations);
   });
 
-  // Get single location
+  // Get single location (filtered by user permissions)
   app.get('/locations/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const user = getCurrentUser(request);
+    const accessibleGateIds = await getAccessibleGateIds(user?.id, user?.isAdmin);
+
     const location = await prisma.location.findUnique({
       where: { id: request.params.id },
       include: {
@@ -70,20 +97,51 @@ export async function gatesRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Location not found' });
     }
 
-    return reply.send(location);
+    // Filter to only accessible gates
+    const filteredLocation = {
+      ...location,
+      areas: location.areas
+        .map((area) => ({
+          ...area,
+          gates: area.gates.filter((gate) => accessibleGateIds.has(gate.id)),
+        }))
+        .filter((area) => area.gates.length > 0),
+    };
+
+    // If user has no access to any gates in this location, return 403
+    if (filteredLocation.areas.length === 0 && !user?.isAdmin) {
+      return reply.status(403).send({ error: 'No access to gates in this location' });
+    }
+
+    return reply.send(filteredLocation);
   });
 
-  // List areas in a location
+  // List areas in a location (filtered by user permissions)
   app.get('/locations/:id/areas', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const user = getCurrentUser(request);
+    const accessibleGateIds = await getAccessibleGateIds(user?.id, user?.isAdmin);
+
     const areas = await prisma.area.findMany({
       where: { locationId: request.params.id },
       include: { gates: true },
     });
-    return reply.send(areas);
+
+    // Filter to only show areas with accessible gates
+    const filteredAreas = areas
+      .map((area) => ({
+        ...area,
+        gates: area.gates.filter((gate) => accessibleGateIds.has(gate.id)),
+      }))
+      .filter((area) => area.gates.length > 0);
+
+    return reply.send(filteredAreas);
   });
 
-  // Get single area
+  // Get single area (filtered by user permissions)
   app.get('/areas/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const user = getCurrentUser(request);
+    const accessibleGateIds = await getAccessibleGateIds(user?.id, user?.isAdmin);
+
     const area = await prisma.area.findUnique({
       where: { id: request.params.id },
       include: { gates: true, location: true },
@@ -93,20 +151,49 @@ export async function gatesRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Area not found' });
     }
 
-    return reply.send(area);
+    // Filter to only accessible gates
+    const filteredArea = {
+      ...area,
+      gates: area.gates.filter((gate) => accessibleGateIds.has(gate.id)),
+    };
+
+    // If user has no access to any gates in this area, return 403
+    if (filteredArea.gates.length === 0 && !user?.isAdmin) {
+      return reply.status(403).send({ error: 'No access to gates in this area' });
+    }
+
+    return reply.send(filteredArea);
   });
 
-  // List gates in an area
+  // List gates in an area (filtered by user permissions)
   app.get('/areas/:id/gates', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const user = getCurrentUser(request);
+    const accessibleGateIds = await getAccessibleGateIds(user?.id, user?.isAdmin);
+
     const gates = await prisma.gate.findMany({
       where: { areaId: request.params.id },
     });
-    return reply.send(gates);
+
+    // Filter to only accessible gates
+    const filteredGates = gates.filter((gate) => accessibleGateIds.has(gate.id));
+
+    return reply.send(filteredGates);
   });
 
-  // Get all gates (flat list)
-  app.get('/gates', async (_request: FastifyRequest, reply: FastifyReply) => {
+  // Get all gates (flat list, filtered by user permissions)
+  app.get('/gates', async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = getCurrentUser(request);
+    const accessibleGateIds = await getAccessibleGateIds(user?.id, user?.isAdmin);
+
+    // If user has no accessible gates, return empty array
+    if (accessibleGateIds.size === 0 && !user?.isAdmin) {
+      return reply.send([]);
+    }
+
     const gates = await prisma.gate.findMany({
+      where: {
+        id: { in: Array.from(accessibleGateIds) },
+      },
       include: {
         area: {
           include: {
@@ -124,8 +211,11 @@ export async function gatesRoutes(app: FastifyInstance) {
     return reply.send(status);
   });
 
-  // Get single gate
+  // Get single gate (with permission check)
   app.get('/gates/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const user = getCurrentUser(request);
+    const accessibleGateIds = await getAccessibleGateIds(user?.id, user?.isAdmin);
+
     const gate = await prisma.gate.findUnique({
       where: { id: request.params.id },
       include: {
@@ -139,6 +229,11 @@ export async function gatesRoutes(app: FastifyInstance) {
 
     if (!gate) {
       return reply.status(404).send({ error: 'Gate not found' });
+    }
+
+    // Check if user has access to this gate
+    if (!accessibleGateIds.has(gate.id) && !user?.isAdmin) {
+      return reply.status(403).send({ error: 'No access to this gate' });
     }
 
     return reply.send(gate);

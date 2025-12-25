@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { adminPreHandler } from '../auth/session.js';
+import { adminPreHandler, getCurrentUser } from '../auth/session.js';
 import { logger } from '../lib/logger.js';
 import { ScopeType } from '@prisma/client';
 
@@ -26,11 +26,35 @@ export async function adminRoutes(app: FastifyInstance) {
         email: true,
         displayName: true,
         isAdmin: true,
+        isActivated: true,
+        activatedAt: true,
+        activatedBy: true,
         createdAt: true,
         updatedAt: true,
         _count: {
           select: { permissions: true },
         },
+      },
+    });
+
+    return reply.send(users);
+  });
+
+  // Get pending users (not activated and never approved)
+  app.get('/users/pending', async (_request: FastifyRequest, reply: FastifyReply) => {
+    const users = await prisma.user.findMany({
+      where: {
+        isActivated: false,
+        activatedAt: null, // Never been approved
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        externalId: true,
+        email: true,
+        displayName: true,
+        isAdmin: true,
+        createdAt: true,
       },
     });
 
@@ -53,6 +77,132 @@ export async function adminRoutes(app: FastifyInstance) {
     }
 
     return reply.send(user);
+  });
+
+  // Activate a user account
+  app.post('/users/:id/activate', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const adminUser = getCurrentUser(request);
+    
+    const user = await prisma.user.findUnique({
+      where: { id: request.params.id },
+    });
+
+    if (!user) {
+      return reply.status(404).send({ error: 'User not found' });
+    }
+
+    if (user.isActivated) {
+      return reply.status(400).send({ error: 'User is already activated' });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isActivated: true,
+        activatedAt: new Date(),
+        activatedBy: adminUser?.id,
+      },
+    });
+
+    logger.info(
+      { userId: user.id, activatedBy: adminUser?.id },
+      'User account activated'
+    );
+
+    // TODO: Future enhancement - Send email notification to user about account approval
+    // await sendActivationEmail(user.email, user.displayName);
+
+    return reply.send({ 
+      success: true, 
+      user: {
+        id: updatedUser.id,
+        isActivated: updatedUser.isActivated,
+        activatedAt: updatedUser.activatedAt,
+      },
+    });
+  });
+
+  // Deactivate a user account
+  app.post('/users/:id/deactivate', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const adminUser = getCurrentUser(request);
+    
+    const user = await prisma.user.findUnique({
+      where: { id: request.params.id },
+    });
+
+    if (!user) {
+      return reply.status(404).send({ error: 'User not found' });
+    }
+
+    // Prevent self-deactivation
+    if (user.id === adminUser?.id) {
+      return reply.status(400).send({ error: 'Cannot deactivate your own account' });
+    }
+
+    // Prevent deactivating other admins (they need to be removed from admin group first)
+    if (user.isAdmin) {
+      return reply.status(400).send({ 
+        error: 'Cannot deactivate admin accounts',
+        message: 'Remove admin status in Authentik first',
+      });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isActivated: false,
+        // Keep activatedAt to track that this account was once approved
+        // This prevents auto-deletion of deactivated (vs never-approved) accounts
+      },
+    });
+
+    logger.info(
+      { userId: user.id, deactivatedBy: adminUser?.id },
+      'User account deactivated'
+    );
+
+    // TODO: Future enhancement - Send email notification to user about account deactivation
+    // await sendDeactivationEmail(user.email, user.displayName);
+
+    return reply.send({ 
+      success: true, 
+      user: {
+        id: updatedUser.id,
+        isActivated: updatedUser.isActivated,
+      },
+    });
+  });
+
+  // Delete a user account (hard delete)
+  app.delete('/users/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const adminUser = getCurrentUser(request);
+    
+    const user = await prisma.user.findUnique({
+      where: { id: request.params.id },
+    });
+
+    if (!user) {
+      return reply.status(404).send({ error: 'User not found' });
+    }
+
+    // Prevent self-deletion
+    if (user.id === adminUser?.id) {
+      return reply.status(400).send({ error: 'Cannot delete your own account' });
+    }
+
+    // Prevent deleting other admins
+    if (user.isAdmin) {
+      return reply.status(400).send({ error: 'Cannot delete admin accounts' });
+    }
+
+    await prisma.user.delete({ where: { id: user.id } });
+
+    logger.info(
+      { userId: user.id, deletedBy: adminUser?.id },
+      'User account deleted'
+    );
+
+    return reply.send({ success: true });
   });
 
   // Grant permission to a user

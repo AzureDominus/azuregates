@@ -7,6 +7,9 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   isGuest: boolean;
+  isActivated: boolean;
+  isPending: boolean;  // Account pending approval (never activated)
+  isDisabled: boolean; // Account was activated but now disabled
   login: (returnTo?: string) => void;
   logout: () => Promise<void>;
   refetch: () => void;
@@ -50,6 +53,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const user = data?.user ?? null;
   const isAuthenticated = data?.authenticated ?? false;
   const isGuest = user?.isGuest ?? false;
+  // Activation status - guests and admins are always considered "activated"
+  const isActivated = user?.isGuest || user?.isAdmin || (user?.isActivated ?? false);
+  // Account states for non-guest users
+  const isPending = isAuthenticated && !isGuest && !user?.isActivated && !user?.wasEverActivated;
+  const isDisabled = isAuthenticated && !isGuest && !user?.isActivated && user?.wasEverActivated === true;
 
   return (
     <AuthContext.Provider
@@ -58,6 +66,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAuthenticated,
         isGuest,
+        isActivated,
+        isPending,
+        isDisabled,
         login,
         logout,
         refetch: () => refetch(),

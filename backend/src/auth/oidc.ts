@@ -63,6 +63,9 @@ export async function oidcRoutes(app: FastifyInstance) {
         isAdmin: user.isAdmin ?? false,
         isGuest: user.isGuest ?? false,
         permissions: user.permissions ?? [],
+        // Activation status for frontend to handle pending/disabled states
+        isActivated: user.isActivated ?? false,
+        wasEverActivated: user.wasEverActivated ?? false,
       },
     });
   });
@@ -160,7 +163,19 @@ export async function oidcRoutes(app: FastifyInstance) {
       
       logger.debug({ groups, adminGroup: config.authentik.adminGroup, isAdmin }, 'Checking admin group membership');
 
-      // Upsert user in database
+      // Check if this is a new user (for activation logic)
+      const existingUser = await prisma.user.findUnique({
+        where: { externalId },
+        select: { id: true, isActivated: true, activatedAt: true },
+      });
+
+      // New users: isActivated = false (unless admin, who are auto-activated)
+      // Existing users: preserve their activation status
+      // Admins are always auto-activated to prevent lockout
+      const isNewUser = !existingUser;
+      const shouldAutoActivate = isAdmin;
+
+      // Upsert user in database with activation logic
       const user = await prisma.user.upsert({
         where: { externalId },
         create: {
@@ -168,17 +183,30 @@ export async function oidcRoutes(app: FastifyInstance) {
           email,
           displayName,
           isAdmin,
+          // New admins are auto-activated, regular users need approval
+          isActivated: shouldAutoActivate,
+          activatedAt: shouldAutoActivate ? new Date() : null,
+          activatedBy: shouldAutoActivate ? 'system-admin-group' : null,
         },
         update: {
           email,
           displayName,
           isAdmin, // Update admin status on each login
+          // If user becomes admin, auto-activate them
+          ...(shouldAutoActivate && !existingUser?.isActivated ? {
+            isActivated: true,
+            activatedAt: existingUser?.activatedAt ?? new Date(),
+            activatedBy: existingUser?.activatedAt ? undefined : 'system-admin-group',
+          } : {}),
         },
       });
 
-      logger.info({ userId: user.id, externalId, isAdmin }, 'User authenticated successfully');
+      logger.info(
+        { userId: user.id, externalId, isAdmin, isActivated: user.isActivated, isNewUser },
+        'User authenticated successfully'
+      );
 
-      // Set session
+      // Set session with activation status
       const session = request.session as any;
       session.user = {
         id: user.id,
@@ -186,6 +214,9 @@ export async function oidcRoutes(app: FastifyInstance) {
         email: user.email || '',
         displayName: user.displayName || '',
         isAdmin: user.isAdmin,
+        isActivated: user.isActivated,
+        // Track if account was ever activated (for disabled vs pending distinction)
+        wasEverActivated: !!user.activatedAt,
       };
       
       // Store id_token for logout
@@ -193,9 +224,20 @@ export async function oidcRoutes(app: FastifyInstance) {
 
       await request.session.save();
 
-      // Redirect to original destination
+      // Redirect based on activation status
       const returnTo = session.returnTo || '/';
       delete session.returnTo;
+
+      // If not activated, redirect to appropriate page
+      if (!user.isActivated) {
+        // If never activated (activatedAt is null), show pending approval page
+        // If was activated before but now disabled, show account disabled page
+        if (user.activatedAt) {
+          return reply.redirect('/account-disabled');
+        } else {
+          return reply.redirect('/pending-approval');
+        }
+      }
 
       return reply.redirect(returnTo);
     } catch (err) {
