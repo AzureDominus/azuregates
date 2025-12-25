@@ -7,7 +7,7 @@ Type=simple
 User=root
 Group=gpio
 WorkingDirectory=/opt/gates/scripts
-ExecStart=/usr/bin/python3 /opt/gates/scripts/gpio_service.py --port 5000 --host 127.0.0.1
+ExecStart=/usr/bin/python3 /opt/gates/scripts/gpio_service.py --port 5000 --host 0.0.0.0
 Restart=always
 RestartSec=5
 
