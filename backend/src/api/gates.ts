@@ -4,8 +4,9 @@ import { prisma } from '../lib/prisma.js';
 import { executeGateCommand, getGateStatus, type GateStatus } from '../drivers/executor.js';
 import { checkPermission, getAccessibleGateIds, getAccessibleGateIdsForGuest } from '../permissions/checker.js';
 import { logAudit } from '../audit/logger.js';
-import { getCurrentUser, authPreHandler, activatedPreHandler } from '../auth/session.js';
+import { getCurrentUser, authPreHandler, activatedPreHandler, type SessionUser } from '../auth/session.js';
 import { broadcastGateCommand, broadcastGateStatus } from './events.js';
+import { validateGuestInvite } from '../auth/guest.js';
 
 /**
  * Extract real client IP from request, checking proxy headers first.
@@ -374,6 +375,27 @@ export async function gatesRoutes(app: FastifyInstance) {
       if (!user.isAdmin) {
         // Guests have limited permissions based on their invite scope
         if (user.isGuest) {
+          // SECURITY: Validate that the guest's invite still exists and is valid
+          // This ensures deleted/expired invites are immediately revoked
+          const session = request.session as { guestToken?: string };
+          const inviteValidation = await validateGuestInvite(session.guestToken);
+          if (!inviteValidation.valid) {
+            await logAudit({
+              userId,
+              gateId,
+              action,
+              result: 'denied',
+              errorMessage: `Guest invite invalid: ${inviteValidation.reason}`,
+              clientIp,
+              userAgent,
+              latencyMs: Date.now() - startTime,
+            });
+            return reply.status(403).send({ 
+              error: 'Access revoked',
+              message: inviteValidation.reason,
+            });
+          }
+
           // Check if the action is in their allowed permissions
           if (!user.permissions?.includes(action)) {
             await logAudit({

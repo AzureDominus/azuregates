@@ -33,6 +33,41 @@ function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
+/**
+ * Validate that a guest invite is still valid.
+ * Called on every guest action to ensure deleted/expired invites are immediately revoked.
+ * 
+ * @param guestToken - The raw token from the guest's session
+ * @returns { valid: boolean, reason?: string }
+ */
+export async function validateGuestInvite(
+  guestToken: string | undefined
+): Promise<{ valid: boolean; reason?: string }> {
+  if (!guestToken) {
+    return { valid: false, reason: 'No guest token in session' };
+  }
+
+  const tokenHash = hashToken(guestToken);
+  
+  const invite = await prisma.invite.findUnique({
+    where: { tokenHash },
+  });
+
+  if (!invite) {
+    return { valid: false, reason: 'Invite has been deleted or is invalid' };
+  }
+
+  if (invite.expiresAt < new Date()) {
+    return { valid: false, reason: 'Invite has expired' };
+  }
+
+  if (invite.maxUses && invite.useCount > invite.maxUses) {
+    return { valid: false, reason: 'Invite has reached maximum uses' };
+  }
+
+  return { valid: true };
+}
+
 export async function guestRoutes(app: FastifyInstance) {
   // Create a new guest invite (magic link) - Admin only
   app.post<{ Body: z.infer<typeof createInviteSchema> }>(
