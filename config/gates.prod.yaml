@@ -20,7 +20,7 @@ version: 1
 
 settings:
   # Cooldown between commands on the same gate (prevents rapid toggling)
-  defaultCooldownMs: 3000
+  defaultCooldownMs: 2000
   logLevel: info
   maintenanceMode: false
 
@@ -29,10 +29,10 @@ locations:
     name: Home
     enabled: true
     metadata:
-      description: "Primary residence gate control system"
+      description: "Sile Bay residence gate control system"
     areas:
-      - id: perimeter
-        name: Perimeter Gates
+      - id: garage
+        name: Garage Gates
         enabled: true
         gates:
           # North Gate - Main driveway entrance
@@ -59,7 +59,7 @@ locations:
               # LOW = relay active (gate moves), HIGH = relay inactive (gate stops)
               activeHigh: false
             metadata:
-              notes: "Main north entrance gate"
+              notes: "Garage north gate"
               physicalLocation: "Front of property, north side"
 
           # South Gate - Secondary entrance
@@ -81,8 +81,8 @@ locations:
               holdDurationMs: 15000
               activeHigh: false
             metadata:
-              notes: "Secondary south entrance gate"
-              physicalLocation: "Rear of property, south side"
+              notes: "Garage south gate"
+              physicalLocation: "Front of property, south side"
 
       - id: utilities
         name: Utilities
