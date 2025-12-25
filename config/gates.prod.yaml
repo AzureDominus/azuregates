@@ -55,7 +55,7 @@ locations:
               # Maximum gate travel time - hold pin LOW for this duration
               # Gate's limit switches will stop motor when fully open/closed
               # Set to max travel time (e.g., 45 seconds for a large gate)
-              holdDurationMs: 45000
+              holdDurationMs: 15000
               # LOW = relay active (gate moves), HIGH = relay inactive (gate stops)
               activeHigh: false
             metadata:
@@ -78,7 +78,7 @@ locations:
               closePin: 15
               pulseDurationMs: 500
               # Max travel time for south gate
-              holdDurationMs: 45000
+              holdDurationMs: 15000
               activeHigh: false
             metadata:
               notes: "Secondary south entrance gate"
@@ -98,7 +98,7 @@ locations:
             capabilities:
               - toggle
             config:
-              togglePin: 17
+              togglePin: 27
               # Short pulse duration for toggle operation
               pulseDurationMs: 500
               activeHigh: false
