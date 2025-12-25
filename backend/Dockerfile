@@ -45,10 +45,8 @@ RUN npx prisma generate
 COPY --from=builder /app/dist ./dist
 
 # Run as non-root user for security (no GPIO device access needed)
-# Use UID 1000 to match the default 'pi' user on Raspberry Pi for config file access
-# GID 1000 already exists as 'node' in alpine, so we just create a user with that group
-RUN adduser -u 1000 -G node -D appuser
-USER appuser
+# The 'node' user (UID 1000) already exists in node:alpine and matches the 'pi' user on Raspberry Pi
+USER node
 
 EXPOSE 3001
 
