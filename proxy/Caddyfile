@@ -4,9 +4,6 @@
 {
     # Global options
     admin off
-    
-    # For local development without HTTPS
-    auto_https off
 }
 
 # Main site - accessible via gates.local or localhost
