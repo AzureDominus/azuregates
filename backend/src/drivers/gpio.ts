@@ -275,7 +275,7 @@ export class GpioDriver extends BaseDriver {
     return {
       success: true,
       message: messages.join('; '),
-      data: { stoppedActiveOp, pulsedStopPin, stopPin },
+      data: { stoppedGpioService, stoppedLocalOp, pulsedStopPin, stopPin },
     };
   }
 
