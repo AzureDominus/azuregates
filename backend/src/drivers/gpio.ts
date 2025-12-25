@@ -73,7 +73,7 @@ async function callGpioServicePulse(pin: number, durationMs: number, activeHigh:
     }),
   });
   
-  const result = await response.json();
+  const result = await response.json() as { success: boolean; error?: string };
   
   if (!response.ok || !result.success) {
     throw new Error(result.error || `GPIO service returned ${response.status}`);
