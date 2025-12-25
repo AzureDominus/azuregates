@@ -15,7 +15,7 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react';
-import { api, type AdminUser, type PendingUser } from '../lib/api';
+import { api, type AdminUser } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 export function Admin() {
