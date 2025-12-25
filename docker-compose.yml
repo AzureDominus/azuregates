@@ -67,8 +67,7 @@ services:
       - CONFIG_PATH=/app/config
       - GATES_CONFIG_FILE=${GATES_CONFIG_FILE:-gates.yaml}
     volumes:
-      - ./config:/app/config:ro
-      - ./config/history:/app/config/history
+      - ./config:/app/config
     # No device mounts needed - GPIO is handled by host Python service
     networks:
       - edge

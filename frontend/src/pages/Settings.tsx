@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2,
@@ -11,9 +11,19 @@ import {
   ChevronDown,
   ChevronUp,
   AlertTriangle,
+  Code,
+  LayoutGrid,
+  Settings2,
+  Pencil,
+  Power,
+  PowerOff,
 } from 'lucide-react';
 import { stringify, parse } from 'yaml';
-import { api, GatesConfig } from '../lib/api';
+import Editor from '@monaco-editor/react';
+import { api, GatesConfig, ConfigGate } from '../lib/api';
+import { GateEditor } from '../components/GateEditor';
+
+type EditorMode = 'visual' | 'yaml';
 
 export function Settings() {
   const queryClient = useQueryClient();
@@ -22,6 +32,10 @@ export function Settings() {
   const [hasChanges, setHasChanges] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [originalYaml, setOriginalYaml] = useState('');
+  const [editorMode, setEditorMode] = useState<EditorMode>('visual');
+  const [editingGate, setEditingGate] = useState<{ locationIdx: number; areaIdx: number; gateIdx: number; gate: ConfigGate } | null>(null);
+  const [localConfig, setLocalConfig] = useState<GatesConfig | null>(null);
+  const editorRef = useRef<any>(null);
 
   // Fetch current config
   const { data: config, isLoading: configLoading } = useQuery({
@@ -43,16 +57,30 @@ export function Settings() {
     enabled: showHistory,
   });
 
-  // Update YAML content when config loads
+  // Update content when config loads
   useEffect(() => {
     if (config) {
       const yaml = stringify(config, { indent: 2, lineWidth: 120 });
       setYamlContent(yaml);
       setOriginalYaml(yaml);
+      setLocalConfig(structuredClone(config));
       setHasChanges(false);
       setParseError(null);
     }
   }, [config]);
+
+  // Sync YAML content to localConfig when switching to visual mode
+  useEffect(() => {
+    if (editorMode === 'visual' && yamlContent) {
+      try {
+        const parsed = parse(yamlContent) as GatesConfig;
+        setLocalConfig(structuredClone(parsed));
+        setParseError(null);
+      } catch {
+        // Don't update localConfig if YAML is invalid
+      }
+    }
+  }, [editorMode]);
 
   // Reload config mutation
   const reloadMutation = useMutation({
@@ -67,12 +95,15 @@ export function Settings() {
   // Save config mutation
   const saveMutation = useMutation({
     mutationFn: (newConfig: GatesConfig) => api.updateConfig(newConfig),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['config'] });
       queryClient.invalidateQueries({ queryKey: ['config-history'] });
       queryClient.invalidateQueries({ queryKey: ['locations'] });
       queryClient.invalidateQueries({ queryKey: ['gates'] });
       setHasChanges(false);
+      // Update original to match saved
+      const yaml = stringify(result.config, { indent: 2, lineWidth: 120 });
+      setOriginalYaml(yaml);
     },
   });
 
@@ -88,8 +119,9 @@ export function Settings() {
     },
   });
 
-  // Handle YAML content change
-  const handleYamlChange = (value: string) => {
+  // Handle YAML content change (from Monaco)
+  const handleYamlChange = (value: string | undefined) => {
+    if (value === undefined) return;
     setYamlContent(value);
     setHasChanges(value !== originalYaml);
 
@@ -102,11 +134,52 @@ export function Settings() {
     }
   };
 
+  // Handle visual config change
+  const handleVisualChange = (newConfig: GatesConfig) => {
+    setLocalConfig(newConfig);
+    const yaml = stringify(newConfig, { indent: 2, lineWidth: 120 });
+    setYamlContent(yaml);
+    setHasChanges(yaml !== originalYaml);
+    setParseError(null);
+  };
+
+  // Handle gate edit from visual editor
+  const handleGateEdit = (locationIdx: number, areaIdx: number, gateIdx: number, gate: ConfigGate) => {
+    setEditingGate({ locationIdx, areaIdx, gateIdx, gate });
+  };
+
+  // Handle gate save from modal
+  const handleGateSave = (updatedGate: ConfigGate) => {
+    if (!localConfig || !editingGate) return;
+
+    const newConfig = structuredClone(localConfig);
+    const location = newConfig.locations[editingGate.locationIdx];
+    const area = location.areas?.[editingGate.areaIdx];
+    if (area?.gates) {
+      area.gates[editingGate.gateIdx] = updatedGate;
+    }
+
+    handleVisualChange(newConfig);
+    setEditingGate(null);
+  };
+
+  // Handle settings change
+  const handleSettingsChange = (key: keyof GatesConfig['settings'], value: any) => {
+    if (!localConfig) return;
+    const newConfig = structuredClone(localConfig);
+    (newConfig.settings as any)[key] = value;
+    handleVisualChange(newConfig);
+  };
+
   // Handle save
   const handleSave = () => {
     try {
-      const parsed = parse(yamlContent) as GatesConfig;
-      saveMutation.mutate(parsed);
+      const parsed = editorMode === 'yaml' 
+        ? parse(yamlContent) as GatesConfig 
+        : localConfig;
+      if (parsed) {
+        saveMutation.mutate(parsed);
+      }
     } catch (err) {
       setParseError(err instanceof Error ? err.message : 'Failed to parse YAML');
     }
@@ -115,19 +188,36 @@ export function Settings() {
   // Handle discard changes
   const handleDiscard = () => {
     setYamlContent(originalYaml);
+    if (config) {
+      setLocalConfig(structuredClone(config));
+    }
     setHasChanges(false);
     setParseError(null);
   };
 
   // Format timestamp from backup filename
   const formatBackupTime = (filename: string) => {
-    // gates-2024-01-15T12-30-45-123Z.yaml -> 2024-01-15 12:30:45
     const match = filename.match(/gates-(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})/);
     if (match) {
       const [, year, month, day, hour, min, sec] = match;
       return `${year}-${month}-${day} ${hour}:${min}:${sec}`;
     }
     return filename;
+  };
+
+  // Monaco editor options
+  const monacoOptions = {
+    minimap: { enabled: false },
+    fontSize: 13,
+    lineNumbers: 'on' as const,
+    scrollBeyondLastLine: false,
+    wordWrap: 'on' as const,
+    wrappingStrategy: 'advanced' as const,
+    automaticLayout: true,
+    tabSize: 2,
+    insertSpaces: true,
+    folding: true,
+    foldingStrategy: 'indentation' as const,
   };
 
   return (
@@ -181,6 +271,32 @@ export function Settings() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Configuration Editor</h2>
           <div className="flex items-center gap-2">
+            {/* Editor Mode Toggle */}
+            <div className="flex items-center bg-gray-900 rounded-lg p-1">
+              <button
+                onClick={() => setEditorMode('visual')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
+                  editorMode === 'visual'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                <LayoutGrid className="w-4 h-4" />
+                Visual
+              </button>
+              <button
+                onClick={() => setEditorMode('yaml')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
+                  editorMode === 'yaml'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                <Code className="w-4 h-4" />
+                YAML
+              </button>
+            </div>
+
             <button
               onClick={() => setShowHistory(!showHistory)}
               className="flex items-center gap-1 px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
@@ -248,7 +364,9 @@ export function Settings() {
           <>
             {/* Editor Info */}
             <p className="text-gray-400 text-sm mb-3">
-              Edit the configuration below. Changes are validated against the schema before saving.
+              {editorMode === 'visual' 
+                ? 'Click on a gate to edit its settings. Changes are validated before saving.'
+                : 'Edit the YAML configuration directly. Changes are validated against the schema before saving.'}
               <span className="text-yellow-400 ml-2">Backups are automatically created on save.</span>
             </p>
 
@@ -276,23 +394,133 @@ export function Settings() {
               </div>
             )}
 
-            {/* YAML Editor */}
-            <div className="relative">
-              <textarea
-                value={yamlContent}
-                onChange={(e) => handleYamlChange(e.target.value)}
-                className={`w-full h-[500px] p-4 bg-gray-900 text-gray-100 font-mono text-sm rounded-lg border ${
-                  parseError ? 'border-red-500' : hasChanges ? 'border-yellow-500' : 'border-gray-700'
-                } focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none`}
-                spellCheck={false}
-                placeholder="Loading configuration..."
-              />
-              {hasChanges && (
-                <div className="absolute top-2 right-2 px-2 py-1 bg-yellow-600/80 text-yellow-100 text-xs rounded">
-                  Unsaved changes
+            {/* Visual Editor */}
+            {editorMode === 'visual' && localConfig && (
+              <div className="space-y-4">
+                {/* Global Settings */}
+                <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Settings2 className="w-5 h-5 text-gray-400" />
+                    <h3 className="font-medium">Global Settings</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Cooldown (ms)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="60000"
+                        value={localConfig.settings.defaultCooldownMs}
+                        onChange={(e) => handleSettingsChange('defaultCooldownMs', parseInt(e.target.value) || 0)}
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Log Level</label>
+                      <select
+                        value={localConfig.settings.logLevel}
+                        onChange={(e) => handleSettingsChange('logLevel', e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {['fatal', 'error', 'warn', 'info', 'debug', 'trace'].map((level) => (
+                          <option key={level} value={level}>{level}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={localConfig.settings.maintenanceMode ?? false}
+                          onChange={(e) => handleSettingsChange('maintenanceMode', e.target.checked)}
+                          className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-orange-500 focus:ring-orange-500"
+                        />
+                        <span className="text-sm text-gray-300">Maintenance Mode</span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
+
+                {/* Locations/Areas/Gates */}
+                {localConfig.locations.map((location, locationIdx) => (
+                  <div key={location.id} className="bg-gray-900 rounded-lg border border-gray-700 overflow-hidden">
+                    <div className="p-3 bg-gray-800 border-b border-gray-700">
+                      <h3 className="font-medium">{location.name}</h3>
+                      <p className="text-xs text-gray-500">{location.id}</p>
+                    </div>
+                    <div className="p-4 space-y-4">
+                      {location.areas?.map((area, areaIdx) => (
+                        <div key={area.id}>
+                          <h4 className="text-sm font-medium text-gray-400 mb-2">{area.name}</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {area.gates?.map((gate, gateIdx) => (
+                              <div
+                                key={gate.id}
+                                className={`p-3 rounded-lg border cursor-pointer transition-colors hover:border-blue-500 ${
+                                  gate.enabled === false
+                                    ? 'bg-gray-800/50 border-gray-700 opacity-60'
+                                    : 'bg-gray-800 border-gray-700'
+                                }`}
+                                onClick={() => handleGateEdit(locationIdx, areaIdx, gateIdx, gate)}
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="font-medium">{gate.name}</span>
+                                  <div className="flex items-center gap-2">
+                                    {gate.enabled === false ? (
+                                      <PowerOff className="w-4 h-4 text-gray-500" />
+                                    ) : (
+                                      <Power className="w-4 h-4 text-green-400" />
+                                    )}
+                                    <Pencil className="w-4 h-4 text-gray-500" />
+                                  </div>
+                                </div>
+                                <div className="text-xs text-gray-500 space-y-1">
+                                  <div>Driver: {gate.driver}</div>
+                                  <div>Capabilities: {gate.capabilities.join(', ')}</div>
+                                  {gate.driver === 'gpio' && (
+                                    <div className="text-gray-600">
+                                      Pins: {[
+                                        gate.config.openPin !== undefined && `open:${gate.config.openPin}`,
+                                        gate.config.closePin !== undefined && `close:${gate.config.closePin}`,
+                                        gate.config.togglePin !== undefined && `toggle:${gate.config.togglePin}`,
+                                      ].filter(Boolean).join(', ')}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* YAML Editor */}
+            {editorMode === 'yaml' && (
+              <div className={`relative rounded-lg overflow-hidden border ${
+                parseError ? 'border-red-500' : hasChanges ? 'border-yellow-500' : 'border-gray-700'
+              }`}>
+                <Editor
+                  height="500px"
+                  defaultLanguage="yaml"
+                  value={yamlContent}
+                  onChange={handleYamlChange}
+                  theme="vs-dark"
+                  options={monacoOptions}
+                  onMount={(editor) => {
+                    editorRef.current = editor;
+                  }}
+                />
+                {hasChanges && (
+                  <div className="absolute top-2 right-2 px-2 py-1 bg-yellow-600/80 text-yellow-100 text-xs rounded z-10">
+                    Unsaved changes
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex items-center gap-3 mt-4">
@@ -345,19 +573,31 @@ export function Settings() {
           <div>
             <h3 className="font-medium text-gray-300 mb-1">Gate Drivers</h3>
             <ul className="list-disc list-inside space-y-1 ml-2">
-              <li><code className="bg-gray-700 px-1 rounded">webhook</code> - HTTP webhook driver for remote control</li>
               <li><code className="bg-gray-700 px-1 rounded">gpio</code> - GPIO driver for Raspberry Pi control</li>
+              <li><code className="bg-gray-700 px-1 rounded">webhook</code> - HTTP webhook driver for remote control</li>
             </ul>
           </div>
           <div>
-            <h3 className="font-medium text-gray-300 mb-1">Gate Capabilities</h3>
+            <h3 className="font-medium text-gray-300 mb-1">GPIO Pin Configuration</h3>
             <ul className="list-disc list-inside space-y-1 ml-2">
-              <li><code className="bg-gray-700 px-1 rounded">open</code>, <code className="bg-gray-700 px-1 rounded">close</code>, <code className="bg-gray-700 px-1 rounded">stop</code>, <code className="bg-gray-700 px-1 rounded">toggle</code> - Gate actions</li>
-              <li><code className="bg-gray-700 px-1 rounded">state</code> - Query gate state (if supported)</li>
+              <li><code className="bg-gray-700 px-1 rounded">openPin</code>, <code className="bg-gray-700 px-1 rounded">closePin</code> - For gates with separate open/close relays</li>
+              <li><code className="bg-gray-700 px-1 rounded">togglePin</code> - For single-button gates or lights</li>
+              <li><code className="bg-gray-700 px-1 rounded">pulseDurationMs</code> - How long to pulse the relay (50-5000ms)</li>
+              <li><code className="bg-gray-700 px-1 rounded">holdDurationMs</code> - For gates that need to hold the button (1000-120000ms)</li>
+              <li><code className="bg-gray-700 px-1 rounded">activeHigh</code> - false = LOW activates relay (most common)</li>
             </ul>
           </div>
         </div>
       </section>
+
+      {/* Gate Editor Modal */}
+      {editingGate && (
+        <GateEditor
+          gate={editingGate.gate}
+          onSave={handleGateSave}
+          onClose={() => setEditingGate(null)}
+        />
+      )}
     </div>
   );
 }
