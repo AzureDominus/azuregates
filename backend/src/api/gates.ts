@@ -520,6 +520,28 @@ export async function gatesRoutes(app: FastifyInstance) {
       },
     });
 
-    return reply.send(logs);
+    // Transform logs to include guest info from metadata when user is null
+    const transformedLogs = logs.map((log) => {
+      const metadata = log.metadata as Record<string, unknown> | null;
+      const isGuest = metadata?.isGuest === true;
+      
+      // For guest actions, synthesize a user object from metadata
+      if (isGuest && !log.user) {
+        return {
+          ...log,
+          user: {
+            id: (metadata?.guestUserId as string) || 'guest',
+            displayName: 'Guest',
+            email: null,
+            isGuest: true,
+            inviteId: metadata?.guestInviteId as string | undefined,
+          },
+        };
+      }
+      
+      return log;
+    });
+
+    return reply.send(transformedLogs);
   });
 }

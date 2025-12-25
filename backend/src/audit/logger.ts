@@ -12,13 +12,33 @@ export interface AuditLogEntry {
   userAgent?: string;
   latencyMs?: number;
   metadata?: Record<string, unknown>;
+  // For guest users - stored in metadata since guests don't have User records
+  isGuest?: boolean;
+  guestInviteId?: string;
 }
 
 export async function logAudit(entry: AuditLogEntry): Promise<void> {
   try {
+    // For guests, store the guest info in metadata and set userId to null
+    // This avoids foreign key constraint issues since guests don't have User records
+    const isGuestUser = entry.isGuest || entry.userId?.startsWith('guest-');
+    const guestInviteId = entry.guestInviteId || (isGuestUser && entry.userId ? entry.userId.replace('guest-', '') : undefined);
+    
+    const metadata: Record<string, unknown> = {
+      ...(entry.metadata ?? {}),
+    };
+    
+    // Add guest info to metadata if this is a guest action
+    if (isGuestUser) {
+      metadata.isGuest = true;
+      metadata.guestInviteId = guestInviteId;
+      metadata.guestUserId = entry.userId; // Preserve the original guest-{id} for display
+    }
+
     await prisma.auditLog.create({
       data: {
-        userId: entry.userId,
+        // Set userId to null for guests to avoid FK constraint violation
+        userId: isGuestUser ? null : entry.userId,
         gateId: entry.gateId,
         action: entry.action,
         result: entry.result,
@@ -26,7 +46,7 @@ export async function logAudit(entry: AuditLogEntry): Promise<void> {
         clientIp: entry.clientIp,
         userAgent: entry.userAgent,
         latencyMs: entry.latencyMs,
-        metadata: (entry.metadata ?? {}) as Prisma.InputJsonValue,
+        metadata: metadata as Prisma.InputJsonValue,
       },
     });
 
@@ -36,6 +56,7 @@ export async function logAudit(entry: AuditLogEntry): Promise<void> {
         gateId: entry.gateId,
         action: entry.action,
         result: entry.result,
+        isGuest: isGuestUser,
       },
       'Audit log entry created'
     );
