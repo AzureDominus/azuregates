@@ -12,7 +12,7 @@ A self-hosted, Docker-based garage gate control system for Raspberry Pi.
 - ⚙️ Configuration as file (YAML) with UI editing
 - 🔄 Pull-based updates
 
-## Quick Start (Development)
+## Quick Start
 
 ### Prerequisites
 
@@ -22,14 +22,13 @@ A self-hosted, Docker-based garage gate control system for Raspberry Pi.
 ### Running the Stack
 
 ```bash
-# Start all services in development mode
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# Start all services
+docker compose up -d --build
 
 # Access the application
-# Frontend: http://localhost:3000
-# Backend API: http://localhost:3000/api
-# Mock Server: http://localhost:4000
-# Authentik: http://localhost:9000
+# Frontend: https://gates.local (or https://garagepi.local)
+# Backend API: https://gates.local/api
+# Authentik: https://garagepi.local:9443
 ```
 
 ### Development without Docker
@@ -56,8 +55,7 @@ npm start
 ## Project Structure
 
 ```
-├── docker-compose.yml          # Production compose file
-├── docker-compose.dev.yml      # Development overrides
+├── docker-compose.yml          # Docker Compose configuration
 ├── config/
 │   ├── gates.yaml              # Gate configuration (source of truth)
 │   ├── gates.schema.json       # Configuration JSON schema
@@ -186,7 +184,7 @@ nano .env  # Edit with production values
 
 ### 3. Configure Gates
 
-Edit `config/gates.prod.yaml` with your GPIO pin assignments:
+Edit `config/gates.yaml` with your GPIO pin assignments:
 
 ```yaml
 gates:
@@ -201,16 +199,16 @@ gates:
       activeHigh: false      # LOW activates relay
 ```
 
-### 4. Start Production Stack
+### 4. Start the Stack
 
 ```bash
-# Start with production configuration
-docker compose -f docker-compose.prod.yml up -d
+# Start all services
+docker compose up -d
 
 # View logs
-docker compose -f docker-compose.prod.yml logs -f
+docker compose logs -f
 
-# Access at http://gates.local
+# Access at https://gates.local or https://garagepi.local
 ```
 
 ### 5. Initial Authentik Setup

@@ -1,44 +1,81 @@
-# Gates Application - Reverse Proxy Configuration
-# Caddy automatically handles HTTPS certificates
+# Production Caddy Configuration for Gates Application
+# Supports both local access via mDNS and remote access via Cloudflare Tunnel
 
 {
-    # Global options
-    admin off
+    # Enable admin API for health checks
+    admin :2019
+
+    # Production settings
+    email {$ACME_EMAIL:admin@localhost}
 }
 
-# Main site - accessible via gates.local or localhost
+# HTTP-only for Cloudflare Tunnel (tunnel handles SSL termination)
+# The :80 prefix creates an HTTP-only listener without auto-HTTPS redirect
 :80 {
-    # Backend API (handle first to avoid catch-all)
-    handle /api/* {
-        reverse_proxy backend:3001
+    # Only respond to requests with the custom domain or Cloudflare headers
+    @cloudflare {
+        header Cf-Ray *
+    }
+    @local {
+        not header Cf-Ray *
     }
 
-    # Authentik authentication
-    handle /auth/* {
-        reverse_proxy authentik:9000
+    # Redirect local HTTP to HTTPS
+    handle @local {
+        redir https://{host}{uri} permanent
     }
 
-    # Health check endpoint (for load balancers/monitoring)
-    handle /health {
-        reverse_proxy backend:3001
+    # Handle Cloudflare tunnel requests (already SSL terminated)
+    handle @cloudflare {
+        # Backend API
+        handle /api/* {
+            reverse_proxy backend:3001 {
+                header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+            }
+        }
+
+        # Authentik authentication - strip /auth prefix
+        handle_path /auth/* {
+            reverse_proxy authentik:9000 {
+                header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+            }
+        }
+
+        # Authentik outpost
+        handle /outpost.goauthentik.io/* {
+            reverse_proxy authentik:9000
+        }
+
+        # Health check
+        handle /health {
+            reverse_proxy backend:3001
+        }
+
+        # Frontend
+        handle {
+            reverse_proxy frontend:80
+        }
+
+        # Security headers
+        header {
+            X-Content-Type-Options nosniff
+            X-Frame-Options DENY
+            Referrer-Policy strict-origin-when-cross-origin
+            Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+        }
     }
 
-    # Frontend SPA (catch-all - Vite dev server on 5173)
-    handle {
-        reverse_proxy frontend:5173
-    }
-
-    # Logging
     log {
         output stdout
         format json
+        level INFO
     }
 }
 
-# HTTPS site (for production or when TLS is enabled)
-# Match localhost and garagepi.local on port 443
-localhost, garagepi.local {
-    # Use self-signed cert for local development
+# HTTPS for local mDNS access (self-signed certs)
+# LOCAL_HOSTS can be set to customize hostnames (comma-separated)
+# Example: LOCAL_HOSTS=gates.local,garagepi.local,myhome.local
+{$LOCAL_HOSTS:gates.local, garagepi.local, localhost} {
     tls internal
 
     # Backend API
@@ -46,18 +83,39 @@ localhost, garagepi.local {
         reverse_proxy backend:3001
     }
 
-    # Authentik authentication
-    handle /auth/* {
+    # Authentik authentication - strip /auth prefix
+    handle_path /auth/* {
         reverse_proxy authentik:9000
     }
 
-    # Frontend SPA (Vite dev server on 5173)
+    # Authentik outpost
+    handle /outpost.goauthentik.io/* {
+        reverse_proxy authentik:9000
+    }
+
+    # Health check
+    handle /health {
+        reverse_proxy backend:3001
+    }
+
+    # Frontend
     handle {
-        reverse_proxy frontend:5173
+        reverse_proxy frontend:80
+    }
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
     }
 
     log {
         output stdout
         format json
+        level INFO
     }
 }
+
+

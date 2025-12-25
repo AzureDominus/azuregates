@@ -4,8 +4,8 @@ This guide walks you through setting up Authentik for the Gates application.
 
 ## Prerequisites
 
-- Gates dev environment running (`docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d`)
-- Access to Authentik at http://localhost:9000
+- Gates environment running (`docker compose up -d`)
+- Access to Authentik at https://garagepi.local:9443
 
 ## Step 1: Initial Authentik Setup
 
