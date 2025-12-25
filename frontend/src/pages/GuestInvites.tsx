@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, AlertCircle, Link2, Trash2, Plus, Check, RefreshCw, Copy } from 'lucide-react';
+import { Loader2, AlertCircle, Link2, Trash2, Plus, Check, Copy } from 'lucide-react';
 import { api, type CreateInviteRequest } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
