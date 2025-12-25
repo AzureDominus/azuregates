@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { randomBytes, createHash } from 'crypto';
+import { createHmac, createHash } from 'crypto';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { logger } from '../lib/logger.js';
@@ -15,10 +15,20 @@ const createInviteSchema = z.object({
   description: z.string().max(200).optional(),
 });
 
-function generateToken(): string {
-  return randomBytes(32).toString('base64url');
+/**
+ * Generate a deterministic token for an invite using HMAC.
+ * This allows us to recreate the same token without storing it.
+ * The token is derived from the invite ID and a secret key (SESSION_SECRET).
+ */
+function generateTokenForInvite(inviteId: string): string {
+  const secret = config.sessionSecret;
+  return createHmac('sha256', secret).update(inviteId).digest('base64url');
 }
 
+/**
+ * Hash a token for storage/lookup. We still hash tokens in the DB
+ * so that even if the DB is compromised, tokens can't be directly used.
+ */
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
@@ -59,15 +69,12 @@ export async function guestRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: `${scopeType} not found: ${scopeId}` });
       }
 
-      // Generate token
-      const token = generateToken();
-      const tokenHash = hashToken(token);
       const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
 
-      // Create invite in database
+      // Create invite in database first (we need the ID for the deterministic token)
       const invite = await prisma.invite.create({
         data: {
-          tokenHash,
+          tokenHash: 'pending', // Will update after we have the ID
           createdById: user.id,
           scopeType,
           scopeId,
@@ -75,6 +82,16 @@ export async function guestRoutes(app: FastifyInstance) {
           expiresAt,
           maxUses,
         },
+      });
+
+      // Generate deterministic token based on invite ID
+      const token = generateTokenForInvite(invite.id);
+      const tokenHash = hashToken(token);
+
+      // Update with the real token hash
+      await prisma.invite.update({
+        where: { id: invite.id },
+        data: { tokenHash },
       });
 
       // Build magic link URL
@@ -102,6 +119,7 @@ export async function guestRoutes(app: FastifyInstance) {
   );
 
   // List all invites - Admin only (admins see all invites)
+  // Now includes magic links since tokens are deterministic
   app.get('/invites', { preHandler: adminPreHandler }, async (request, reply) => {
     const invites = await prisma.invite.findMany({
       orderBy: { createdAt: 'desc' },
@@ -120,7 +138,17 @@ export async function guestRoutes(app: FastifyInstance) {
       },
     });
 
-    return reply.send(invites);
+    // Add magic links to each invite (we can regenerate them since tokens are deterministic)
+    const invitesWithLinks = invites.map((invite) => {
+      const token = generateTokenForInvite(invite.id);
+      const magicLink = `${config.baseUrl}/guest?token=${token}`;
+      return {
+        ...invite,
+        magicLink,
+      };
+    });
+
+    return reply.send(invitesWithLinks);
   });
 
   // Delete/revoke an invite - Admin only
@@ -140,54 +168,6 @@ export async function guestRoutes(app: FastifyInstance) {
     logger.info({ inviteId: invite.id, deletedBy: user.id }, 'Guest invite deleted');
 
     return reply.send({ success: true });
-  });
-
-  // Regenerate magic link for an invite - Admin only
-  // This creates a new token for the same invite (invalidating the old one)
-  app.post<{ Params: { id: string } }>('/invites/:id/regenerate', { preHandler: adminPreHandler }, async (request, reply) => {
-    const user = getCurrentUser(request)!;
-
-    const invite = await prisma.invite.findUnique({
-      where: { id: request.params.id },
-    });
-
-    if (!invite) {
-      return reply.status(404).send({ error: 'Invite not found' });
-    }
-
-    // Check if expired
-    if (invite.expiresAt < new Date()) {
-      return reply.status(410).send({ error: 'Invite has expired' });
-    }
-
-    // Generate new token
-    const token = generateToken();
-    const tokenHash = hashToken(token);
-
-    // Update invite with new token hash
-    await prisma.invite.update({
-      where: { id: invite.id },
-      data: { tokenHash },
-    });
-
-    // Build magic link URL
-    const magicLink = `${config.baseUrl}/guest?token=${token}`;
-
-    logger.info({ inviteId: invite.id, regeneratedBy: user.id }, 'Guest invite link regenerated');
-
-    return reply.send({
-      success: true,
-      invite: {
-        id: invite.id,
-        scopeType: invite.scopeType,
-        scopeId: invite.scopeId,
-        allowedActions: invite.allowedActions,
-        expiresAt: invite.expiresAt.toISOString(),
-        maxUses: invite.maxUses,
-        useCount: invite.useCount,
-        magicLink,
-      },
-    });
   });
 
   // Redeem a guest token (magic link landing)

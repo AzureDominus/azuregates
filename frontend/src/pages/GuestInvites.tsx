@@ -43,18 +43,13 @@ export function GuestInvites() {
     },
   });
 
-  const regenerateMutation = useMutation({
-    mutationFn: api.regenerateInviteLink,
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['invites'] });
-      // Copy the new magic link to clipboard
-      if (data.invite.magicLink) {
-        navigator.clipboard.writeText(data.invite.magicLink);
-        setCopiedId(data.invite.id);
-        setTimeout(() => setCopiedId(null), 3000);
-      }
-    },
-  });
+  const copyMagicLink = (invite: { id: string; magicLink?: string }) => {
+    if (invite.magicLink) {
+      navigator.clipboard.writeText(invite.magicLink);
+      setCopiedId(invite.id);
+      setTimeout(() => setCopiedId(null), 3000);
+    }
+  };
 
   if (!isAuthenticated || isGuest) {
     return (
@@ -177,18 +172,13 @@ export function GuestInvites() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    {isActive && (
+                    {isActive && invite.magicLink && (
                       <button
-                        onClick={() => regenerateMutation.mutate(invite.id)}
-                        disabled={regenerateMutation.isPending}
+                        onClick={() => copyMagicLink(invite)}
                         className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-700 rounded transition-colors"
-                        title="Copy link (generates new token)"
+                        title="Copy magic link"
                       >
-                        {regenerateMutation.isPending ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Copy className="w-4 h-4" />
-                        )}
+                        <Copy className="w-4 h-4" />
                       </button>
                     )}
                     <button
