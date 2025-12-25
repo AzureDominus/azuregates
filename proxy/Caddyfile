@@ -36,8 +36,8 @@
 }
 
 # HTTPS site (for production or when TLS is enabled)
-# Match any hostname on port 443
-https:// {
+# Match localhost and garagepi.local on port 443
+localhost, garagepi.local {
     # Use self-signed cert for local development
     tls internal
 
