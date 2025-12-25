@@ -37,7 +37,7 @@ services:
     networks:
       - edge
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -81,7 +81,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/api/health"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3001/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
