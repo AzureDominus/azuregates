@@ -45,8 +45,8 @@ RUN npx prisma generate
 COPY --from=builder /app/dist ./dist
 
 # Run as non-root user for security (no GPIO device access needed)
-RUN addgroup --gid 1001 nodejs && \
-    adduser --uid 1001 --gid 1001 --disabled-password nodejs
+RUN addgroup -g 1001 nodejs && \
+    adduser -u 1001 -G nodejs -D nodejs
 USER nodejs
 
 EXPOSE 3001
