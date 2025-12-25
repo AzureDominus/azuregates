@@ -285,6 +285,14 @@ export async function oidcRoutes(app: FastifyInstance) {
       // Replace internal Authentik URL with appropriate external URL for browser access
       const externalLogoutUrl = logoutUrl.href.replace(config.authentik.url, effectiveAuthUrl);
       
+      logger.info({ 
+        isRemoteAccess, 
+        effectiveBaseUrl, 
+        effectiveAuthUrl, 
+        externalLogoutUrl,
+        requestHost,
+      }, 'Built logout URL');
+      
       return reply.send({ 
         success: true, 
         message: 'Logged out successfully',
