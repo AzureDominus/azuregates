@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { DoorOpen, DoorClosed, Loader2, AlertCircle } from 'lucide-react';
+import { DoorOpen, DoorClosed, Loader2, AlertCircle, Wifi, WifiOff } from 'lucide-react';
 import { api } from '../lib/api';
 import { GateCard } from '../components/GateCard';
 import { useRequireAuth } from '../lib/auth';
+import { useGateEvents } from '../lib/useGateEvents';
 
 export function Dashboard() {
   const { isReady } = useRequireAuth();
+  const { connected, getGateActiveStatus } = useGateEvents();
   
   const { data: locations, isLoading, error } = useQuery({
     queryKey: ['locations'],
@@ -46,7 +48,22 @@ export function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <div className="flex items-center gap-2 text-sm">
+          {connected ? (
+            <span className="flex items-center gap-1 text-green-400">
+              <Wifi className="w-4 h-4" />
+              Live
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-yellow-400">
+              <WifiOff className="w-4 h-4" />
+              Reconnecting...
+            </span>
+          )}
+        </div>
+      </div>
 
       {locations.map((location) => (
         <div key={location.id} className="space-y-4">
@@ -69,7 +86,11 @@ export function Dashboard() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {area.gates?.map((gate) => (
-                  <GateCard key={gate.id} gate={gate} />
+                  <GateCard 
+                    key={gate.id} 
+                    gate={gate} 
+                    activeStatus={getGateActiveStatus(gate.id)} 
+                  />
                 ))}
               </div>
             </div>

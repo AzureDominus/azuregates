@@ -13,6 +13,23 @@ export interface Gate {
   metadata: Record<string, unknown>;
 }
 
+export interface GateStatus {
+  gateId: string;
+  action: GateAction;
+  startTime: number;
+  estimatedEndTime: number;
+  remainingMs: number;
+}
+
+export interface GateCommandEvent {
+  gateId: string;
+  gateName: string;
+  action: string;
+  result: 'success' | 'failure' | 'denied';
+  userId?: string;
+  timestamp: number;
+}
+
 export interface Area {
   id: string;
   locationId: string;
@@ -39,6 +56,7 @@ export interface AuditLog {
   errorMessage?: string;
   clientIp?: string;
   latencyMs?: number;
+  metadata?: { message?: string; data?: Record<string, unknown> };
   createdAt: string;
   gate?: { id: string; name: string };
   user?: { id: string; displayName: string; email: string };
@@ -96,6 +114,7 @@ export const api = {
   // Gates
   getGates: () => fetchJson<Gate[]>('/gates'),
   getGate: (id: string) => fetchJson<Gate>(`/gates/${id}`),
+  getGateStatus: () => fetchJson<GateStatus[]>('/gates/status'),
 
   // Commands
   sendCommand: (gateId: string, action: GateAction) =>

@@ -538,3 +538,22 @@ export class GpioDriver extends BaseDriver {
 }
 
 export const gpioDriver = new GpioDriver();
+
+/**
+ * Get the status of all active gate operations.
+ * Returns a map of gateId -> operation info (action, startTime, estimatedEndTime).
+ */
+export function getActiveGateOperations(): Map<string, { action: GateAction; startTime: number; estimatedEndTime: number }> {
+  const result = new Map<string, { action: GateAction; startTime: number; estimatedEndTime: number }>();
+  
+  for (const [gateId, op] of activeGateOperations) {
+    const duration = op.config.holdDurationMs ?? op.config.pulseDurationMs;
+    result.set(gateId, {
+      action: op.action,
+      startTime: op.startTime,
+      estimatedEndTime: op.startTime + duration,
+    });
+  }
+  
+  return result;
+}

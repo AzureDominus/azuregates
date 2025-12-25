@@ -2,9 +2,42 @@ import type { Gate } from '@prisma/client';
 import type { GateAction } from '../config/schema.js';
 import type { DriverResult, GateDriver } from './base.js';
 import { webhookDriver } from './webhook.js';
-import { gpioDriver } from './gpio.js';
+import { gpioDriver, getActiveGateOperations } from './gpio.js';
 import { logger } from '../lib/logger.js';
 import { getConfig } from '../config/loader.js';
+
+// Re-export for use in gates API
+export { getActiveGateOperations };
+
+// Gate status type
+export interface GateStatus {
+  gateId: string;
+  action: GateAction;
+  startTime: number;
+  estimatedEndTime: number;
+  remainingMs: number;
+}
+
+/**
+ * Get status of all gates with active operations.
+ */
+export function getGateStatus(): GateStatus[] {
+  const activeOps = getActiveGateOperations();
+  const now = Date.now();
+  const result: GateStatus[] = [];
+  
+  for (const [gateId, op] of activeOps) {
+    result.push({
+      gateId,
+      action: op.action,
+      startTime: op.startTime,
+      estimatedEndTime: op.estimatedEndTime,
+      remainingMs: Math.max(0, op.estimatedEndTime - now),
+    });
+  }
+  
+  return result;
+}
 
 // Driver registry
 const drivers: Record<string, GateDriver> = {

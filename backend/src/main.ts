@@ -7,12 +7,15 @@ import { healthRoutes } from './api/health.js';
 import { gatesRoutes } from './api/gates.js';
 import { configRoutes } from './api/config.js';
 import { adminRoutes } from './api/admin.js';
+import { eventsRoutes } from './api/events.js';
 import { oidcRoutes } from './auth/oidc.js';
 import { guestRoutes } from './auth/guest.js';
 import { setupSession } from './auth/session.js';
 import { loadConfig } from './config/loader.js';
 
 const app = Fastify({
+  // Trust proxy headers (X-Forwarded-For, etc) set by Caddy
+  trustProxy: true,
   logger: {
     level: config.logLevel,
     transport:
@@ -70,6 +73,7 @@ await app.register(healthRoutes, { prefix: '/api' });
 await app.register(oidcRoutes, { prefix: '/api/auth' });
 await app.register(guestRoutes, { prefix: '/api/guest' });
 await app.register(gatesRoutes, { prefix: '/api' });
+await app.register(eventsRoutes, { prefix: '/api' });
 await app.register(configRoutes, { prefix: '/api/config' });
 await app.register(adminRoutes, { prefix: '/api/admin' });
 

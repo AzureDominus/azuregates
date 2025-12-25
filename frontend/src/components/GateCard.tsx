@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { DoorOpen, DoorClosed, StopCircle, ToggleLeft, Loader2, Power } from 'lucide-react';
-import { api, type Gate, type GateAction } from '../lib/api';
+import { api, type Gate, type GateAction, type GateStatus } from '../lib/api';
 
 interface GateCardProps {
   gate: Gate;
+  activeStatus?: GateStatus;
 }
 
 const actionIcons: Record<GateAction, typeof DoorOpen> = {
@@ -23,9 +24,35 @@ const actionColors: Record<GateAction, string> = {
   state: 'bg-gray-600 hover:bg-gray-500',
 };
 
-export function GateCard({ gate }: GateCardProps) {
+const actionLabels: Record<GateAction, string> = {
+  open: 'Opening',
+  close: 'Closing',
+  stop: 'Stopping',
+  toggle: 'Toggling',
+  state: 'Checking',
+};
+
+export function GateCard({ gate, activeStatus }: GateCardProps) {
   const queryClient = useQueryClient();
   const [lastResult, setLastResult] = useState<{ success: boolean; message?: string } | null>(null);
+  const [remainingMs, setRemainingMs] = useState<number>(0);
+
+  // Update remaining time every 100ms when there's an active operation
+  useEffect(() => {
+    if (!activeStatus) {
+      setRemainingMs(0);
+      return;
+    }
+
+    const updateRemaining = () => {
+      const remaining = Math.max(0, activeStatus.estimatedEndTime - Date.now());
+      setRemainingMs(remaining);
+    };
+
+    updateRemaining();
+    const interval = setInterval(updateRemaining, 100);
+    return () => clearInterval(interval);
+  }, [activeStatus]);
 
   const commandMutation = useMutation({
     mutationFn: ({ gateId, action }: { gateId: string; action: GateAction }) =>
@@ -49,11 +76,16 @@ export function GateCard({ gate }: GateCardProps) {
 
   const isDisabled = !gate.enabled;
   const capabilities = gate.capabilities as GateAction[];
+  const isActive = !!activeStatus && remainingMs > 0;
 
   return (
     <div
       className={`bg-gray-800 rounded-lg p-4 border ${
-        isDisabled ? 'border-yellow-600 opacity-60' : 'border-gray-700'
+        isActive
+          ? 'border-blue-500 ring-2 ring-blue-500/20'
+          : isDisabled
+          ? 'border-yellow-600 opacity-60'
+          : 'border-gray-700'
       }`}
     >
       <div className="flex items-center justify-between mb-3">
@@ -62,6 +94,19 @@ export function GateCard({ gate }: GateCardProps) {
           <span className="text-xs bg-yellow-600 px-2 py-0.5 rounded">Disabled</span>
         )}
       </div>
+
+      {/* Active operation indicator */}
+      {isActive && activeStatus && (
+        <div className="mb-3 bg-blue-900/50 rounded-lg p-2 flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+          <span className="text-blue-300 text-sm">
+            {actionLabels[activeStatus.action as GateAction] || activeStatus.action}...
+          </span>
+          <span className="text-blue-400 text-xs ml-auto">
+            {Math.ceil(remainingMs / 1000)}s
+          </span>
+        </div>
+      )}
 
       <div className="text-xs text-gray-400 mb-3">
         Driver: {gate.driverType} • Capabilities: {capabilities.join(', ')}
@@ -75,7 +120,7 @@ export function GateCard({ gate }: GateCardProps) {
             const Icon = actionIcons[action];
             // Stop button should remain enabled even when another action is in progress
             const isStopAction = action === 'stop';
-            const isButtonDisabled = isDisabled || (commandMutation.isPending && !isStopAction);
+            const isButtonDisabled = isDisabled || ((commandMutation.isPending || isActive) && !isStopAction);
             return (
               <button
                 key={action}

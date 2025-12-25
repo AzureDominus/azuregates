@@ -86,8 +86,10 @@ export function AuditLogs() {
                     <td className="py-3 pr-4 text-gray-400">
                       {log.latencyMs ? `${log.latencyMs}ms` : '-'}
                     </td>
-                    <td className="py-3 text-gray-500 text-xs max-w-xs truncate">
-                      {log.errorMessage || log.clientIp || '-'}
+                    <td className="py-3 text-gray-500 text-xs max-w-xs truncate" title={log.clientIp}>
+                      {log.result === 'failure' || log.result === 'denied'
+                        ? log.errorMessage || '-'
+                        : log.metadata?.message || '-'}
                     </td>
                   </tr>
                 );

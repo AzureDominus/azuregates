@@ -1,10 +1,35 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { executeGateCommand } from '../drivers/executor.js';
+import { executeGateCommand, getGateStatus, type GateStatus } from '../drivers/executor.js';
 import { checkPermission } from '../permissions/checker.js';
 import { logAudit } from '../audit/logger.js';
 import { getCurrentUser, authPreHandler } from '../auth/session.js';
+import { broadcastGateCommand, broadcastGateStatus } from './events.js';
+
+/**
+ * Extract real client IP from request, checking proxy headers first.
+ * Caddy sets X-Real-IP for local requests and CF-Connecting-IP for Cloudflare.
+ */
+function getClientIp(request: FastifyRequest): string {
+  // Cloudflare tunnel sets this
+  const cfIp = request.headers['cf-connecting-ip'];
+  if (cfIp && typeof cfIp === 'string') return cfIp;
+  
+  // Caddy sets X-Real-IP
+  const realIp = request.headers['x-real-ip'];
+  if (realIp && typeof realIp === 'string') return realIp;
+  
+  // X-Forwarded-For may contain comma-separated list, take first
+  const forwardedFor = request.headers['x-forwarded-for'];
+  if (forwardedFor) {
+    const ips = (typeof forwardedFor === 'string' ? forwardedFor : forwardedFor[0]).split(',');
+    return ips[0].trim();
+  }
+  
+  // Fall back to direct connection IP
+  return request.ip;
+}
 
 const commandSchema = z.object({
   action: z.enum(['open', 'close', 'stop', 'toggle']),
@@ -93,6 +118,12 @@ export async function gatesRoutes(app: FastifyInstance) {
     return reply.send(gates);
   });
 
+  // Get gate status (active operations)
+  app.get('/gates/status', async (_request: FastifyRequest, reply: FastifyReply) => {
+    const status = getGateStatus();
+    return reply.send(status);
+  });
+
   // Get single gate
   app.get('/gates/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const gate = await prisma.gate.findUnique({
@@ -121,7 +152,7 @@ export async function gatesRoutes(app: FastifyInstance) {
       reply: FastifyReply
     ) => {
       const startTime = Date.now();
-      const clientIp = request.ip;
+      const clientIp = getClientIp(request);
       const userAgent = request.headers['user-agent'];
 
       // Validate request body
@@ -308,6 +339,10 @@ export async function gatesRoutes(app: FastifyInstance) {
           metadata: { ...result } as Record<string, unknown>,
         });
 
+        // Broadcast to all connected SSE clients
+        broadcastGateCommand(gate.id, gate.name, action, 'success', userId);
+        broadcastGateStatus();
+
         return reply.send({
           success: true,
           gate: { id: gate.id, name: gate.name },
@@ -326,6 +361,9 @@ export async function gatesRoutes(app: FastifyInstance) {
           userAgent,
           latencyMs: Date.now() - startTime,
         });
+
+        // Broadcast failure to all connected SSE clients
+        broadcastGateCommand(gateId, gate.name, action, 'failure', userId);
 
         request.log.error({ err, gateId, action }, 'Gate command failed');
         return reply.status(500).send({ error: 'Command execution failed', details: errorMessage });
