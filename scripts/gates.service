@@ -1,0 +1,32 @@
+[Unit]
+Description=AzureGates Docker Compose Stack
+Documentation=https://github.com/AzureDominus/azuregates
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/gates
+
+# Start the stack with remote-access profile by default
+ExecStart=/usr/bin/docker compose --profile remote-access up -d --remove-orphans
+ExecStop=/usr/bin/docker compose --profile remote-access down
+ExecReload=/usr/bin/docker compose --profile remote-access up -d --remove-orphans
+
+# Restart policy for the oneshot service
+Restart=on-failure
+RestartSec=30
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gates
+
+# Give containers time to start
+TimeoutStartSec=300
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

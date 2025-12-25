@@ -9,7 +9,7 @@ services:
   proxy:
     image: caddy:2-alpine
     container_name: gates-proxy
-    restart: unless-stopped
+    restart: always
     ports:
       - "80:80"
       - "443:443"
@@ -33,9 +33,15 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: gates-frontend
-    restart: unless-stopped
+    restart: always
     networks:
       - edge
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # Backend API
   backend:
@@ -44,7 +50,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: gates-backend
-    restart: unless-stopped
+    restart: always
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL:-postgresql://gates:${POSTGRES_PASSWORD}@postgres:5432/gates}
@@ -74,6 +80,12 @@ services:
       - internal
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,7 +96,7 @@ services:
   postgres:
     image: postgres:17-alpine
     container_name: gates-postgres
-    restart: unless-stopped
+    restart: always
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-gates}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -103,7 +115,7 @@ services:
   redis:
     image: redis:8-alpine
     container_name: gates-redis
-    restart: unless-stopped
+    restart: always
     command: redis-server --appendonly yes --maxmemory 100mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
@@ -119,7 +131,7 @@ services:
   authentik:
     image: ghcr.io/goauthentik/server:2025.10.3
     container_name: gates-authentik
-    restart: unless-stopped
+    restart: always
     command: server
     ports:
       - "9443:9443"
@@ -146,7 +158,7 @@ services:
   authentik-worker:
     image: ghcr.io/goauthentik/server:2025.10.3
     container_name: gates-authentik-worker
-    restart: unless-stopped
+    restart: always
     command: worker
     environment:
       - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
@@ -170,7 +182,7 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: gates-cloudflared
-    restart: unless-stopped
+    restart: always
     command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}

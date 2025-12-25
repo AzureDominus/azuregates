@@ -141,14 +141,19 @@ setup_systemd() {
     log_info "Setting up systemd services..."
     
     # Copy service files
+    cp "$INSTALL_DIR/scripts/gates.service" /etc/systemd/system/
+    cp "$INSTALL_DIR/scripts/gpio-service.service" /etc/systemd/system/
     cp "$INSTALL_DIR/scripts/gates-update.service" /etc/systemd/system/
     cp "$INSTALL_DIR/scripts/gates-update.timer" /etc/systemd/system/
     
-    # Update paths in service file
+    # Update paths in service files
+    sed -i "s|/opt/gates|$INSTALL_DIR|g" /etc/systemd/system/gates.service
+    sed -i "s|/opt/gates|$INSTALL_DIR|g" /etc/systemd/system/gpio-service.service
     sed -i "s|/opt/gates|$INSTALL_DIR|g" /etc/systemd/system/gates-update.service
     
     # Make all scripts executable
     chmod +x "$INSTALL_DIR/scripts/"*.sh
+    chmod +x "$INSTALL_DIR/scripts/"*.py
     
     # Create symlink for gates-ctl in /usr/local/bin
     ln -sf "$INSTALL_DIR/scripts/gates-ctl.sh" /usr/local/bin/gates-ctl
@@ -156,11 +161,16 @@ setup_systemd() {
     # Reload systemd
     systemctl daemon-reload
     
-    # Enable the timer
-    systemctl enable gates-update.timer
+    # Enable all services
+    systemctl enable gates.service         # Docker Compose stack
+    systemctl enable gpio-service.service  # GPIO Python service
+    systemctl enable gates-update.timer    # Auto-update timer
     systemctl start gates-update.timer
     
     log_info "Systemd services configured"
+    log_info "  - gates.service: Docker Compose stack (runs on boot with remote-access)"
+    log_info "  - gpio-service.service: GPIO Python service for relay control"
+    log_info "  - gates-update.timer: Automatic updates"
 }
 
 setup_hostname() {
@@ -182,8 +192,11 @@ start_application() {
     
     cd "$INSTALL_DIR"
     
-    # Build and start with production compose
-    docker compose -f docker-compose.prod.yml up -d --build
+    # Start the GPIO service first
+    systemctl start gpio-service.service
+    
+    # Start the Docker Compose stack via systemd
+    systemctl start gates.service
     
     log_info "Waiting for services to start..."
     sleep 30
@@ -193,7 +206,8 @@ start_application() {
         log_info "Application is healthy!"
     else
         log_warn "Health check failed. Services may still be starting..."
-        log_info "Check logs with: docker compose -f docker-compose.prod.yml logs"
+        log_info "Check logs with: journalctl -u gates -f"
+        log_info "Or: docker compose logs -f"
     fi
 }
 
