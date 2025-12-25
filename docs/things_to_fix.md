@@ -1,8 +1,9 @@
 - Move to bun for faster builds and smaller bundle size
-- Need to sync gate status periodically instead of only on command execution (like if a gate is currently being opened/closed by someone else)
+- Only admins should see settings page
 
 
 DONE
 - Need to add stop button to gates
 - Need to make gates only visible if you have acess to at least one command
 - Need to make accounts actiavable /deactivable by admins
+- Need to sync gate status periodically instead of only on command execution (like if a gate is currently being opened/closed by someone else)

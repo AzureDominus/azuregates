@@ -45,8 +45,9 @@ RUN npx prisma generate
 COPY --from=builder /app/dist ./dist
 
 # Run as non-root user for security (no GPIO device access needed)
-RUN addgroup -g 1001 nodejs && \
-    adduser -u 1001 -G nodejs -D nodejs
+# Use UID 1000 to match the default 'pi' user on Raspberry Pi for config file access
+RUN addgroup -g 1000 nodejs && \
+    adduser -u 1000 -G nodejs -D nodejs
 USER nodejs
 
 EXPOSE 3001
