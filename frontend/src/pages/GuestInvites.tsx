@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, AlertCircle, Link2, Trash2, Plus, Check } from 'lucide-react';
+import { Loader2, AlertCircle, Link2, Trash2, Plus, Check, RefreshCw, Copy } from 'lucide-react';
 import { api, type CreateInviteRequest } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
@@ -43,8 +43,18 @@ export function GuestInvites() {
     },
   });
 
-  // Note: Magic links can only be copied when created, as the token is not stored
-  // This is intentional for security
+  const regenerateMutation = useMutation({
+    mutationFn: api.regenerateInviteLink,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['invites'] });
+      // Copy the new magic link to clipboard
+      if (data.invite.magicLink) {
+        navigator.clipboard.writeText(data.invite.magicLink);
+        setCopiedId(data.invite.id);
+        setTimeout(() => setCopiedId(null), 3000);
+      }
+    },
+  });
 
   if (!isAuthenticated || isGuest) {
     return (
@@ -131,6 +141,7 @@ export function GuestInvites() {
           {invites.map((invite) => {
             const isExpired = new Date(invite.expiresAt) < new Date();
             const isMaxedOut = invite.maxUses && invite.useCount >= invite.maxUses;
+            const isActive = !isExpired && !isMaxedOut;
 
             return (
               <div
@@ -140,11 +151,16 @@ export function GuestInvites() {
                 }`}
               >
                 <div className="flex items-start justify-between">
-                  <div>
+                  <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">
                         {invite.scopeType}: {invite.scopeId}
                       </span>
+                      {copiedId === invite.id && (
+                        <span className="text-xs bg-green-600 px-2 py-0.5 rounded flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Copied!
+                        </span>
+                      )}
                       {isExpired && (
                         <span className="text-xs bg-red-600 px-2 py-0.5 rounded">Expired</span>
                       )}
@@ -160,14 +176,30 @@ export function GuestInvites() {
                       Uses: {invite.useCount}{invite.maxUses ? ` / ${invite.maxUses}` : ''}
                     </div>
                   </div>
-                  <button
-                    onClick={() => deleteMutation.mutate(invite.id)}
-                    disabled={deleteMutation.isPending}
-                    className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors"
-                    title="Delete invite"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    {isActive && (
+                      <button
+                        onClick={() => regenerateMutation.mutate(invite.id)}
+                        disabled={regenerateMutation.isPending}
+                        className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-700 rounded transition-colors"
+                        title="Copy link (generates new token)"
+                      >
+                        {regenerateMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => deleteMutation.mutate(invite.id)}
+                      disabled={deleteMutation.isPending}
+                      className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors"
+                      title="Delete invite"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );

@@ -118,6 +118,8 @@ export async function revokePermission(permissionId: string) {
  * Resolves hierarchical permissions: LOCATION -> all gates in location, AREA -> all gates in area.
  * Admins get access to all gates.
  * Returns empty set if user has no permissions.
+ * 
+ * For guests, use getAccessibleGateIdsForGuest instead.
  */
 export async function getAccessibleGateIds(
   userId: string | null | undefined,
@@ -190,6 +192,41 @@ export async function getAccessibleGateIds(
       select: { id: true },
     });
     locationGates.forEach((g) => accessibleGateIds.add(g.id));
+  }
+
+  return accessibleGateIds;
+}
+
+/**
+ * Get accessible gate IDs for a guest user based on their session scope.
+ * This is used instead of getAccessibleGateIds for guest sessions.
+ */
+export async function getAccessibleGateIdsForGuest(
+  scopeType: 'LOCATION' | 'AREA' | 'GATE',
+  scopeId: string
+): Promise<Set<string>> {
+  const accessibleGateIds = new Set<string>();
+
+  switch (scopeType) {
+    case 'GATE':
+      accessibleGateIds.add(scopeId);
+      break;
+    case 'AREA': {
+      const areaGates = await prisma.gate.findMany({
+        where: { areaId: scopeId },
+        select: { id: true },
+      });
+      areaGates.forEach((g) => accessibleGateIds.add(g.id));
+      break;
+    }
+    case 'LOCATION': {
+      const locationGates = await prisma.gate.findMany({
+        where: { area: { locationId: scopeId } },
+        select: { id: true },
+      });
+      locationGates.forEach((g) => accessibleGateIds.add(g.id));
+      break;
+    }
   }
 
   return accessibleGateIds;

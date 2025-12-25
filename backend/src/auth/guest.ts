@@ -142,6 +142,54 @@ export async function guestRoutes(app: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  // Regenerate magic link for an invite - Admin only
+  // This creates a new token for the same invite (invalidating the old one)
+  app.post<{ Params: { id: string } }>('/invites/:id/regenerate', { preHandler: adminPreHandler }, async (request, reply) => {
+    const user = getCurrentUser(request)!;
+
+    const invite = await prisma.invite.findUnique({
+      where: { id: request.params.id },
+    });
+
+    if (!invite) {
+      return reply.status(404).send({ error: 'Invite not found' });
+    }
+
+    // Check if expired
+    if (invite.expiresAt < new Date()) {
+      return reply.status(410).send({ error: 'Invite has expired' });
+    }
+
+    // Generate new token
+    const token = generateToken();
+    const tokenHash = hashToken(token);
+
+    // Update invite with new token hash
+    await prisma.invite.update({
+      where: { id: invite.id },
+      data: { tokenHash },
+    });
+
+    // Build magic link URL
+    const magicLink = `${config.baseUrl}/guest?token=${token}`;
+
+    logger.info({ inviteId: invite.id, regeneratedBy: user.id }, 'Guest invite link regenerated');
+
+    return reply.send({
+      success: true,
+      invite: {
+        id: invite.id,
+        scopeType: invite.scopeType,
+        scopeId: invite.scopeId,
+        allowedActions: invite.allowedActions,
+        expiresAt: invite.expiresAt.toISOString(),
+        maxUses: invite.maxUses,
+        useCount: invite.useCount,
+        magicLink,
+      },
+    });
+  });
+
   // Redeem a guest token (magic link landing)
   app.get<{ Querystring: { token: string } }>(
     '/redeem',
@@ -188,6 +236,9 @@ export async function guestRoutes(app: FastifyInstance) {
         isGuest: true,
         guestExpiry: invite.expiresAt,
         permissions: invite.allowedActions,
+        // Store scope info in session for permission checks
+        guestScopeType: invite.scopeType,
+        guestScopeId: invite.scopeId,
       };
 
       const session = request.session as any;
@@ -195,27 +246,8 @@ export async function guestRoutes(app: FastifyInstance) {
       session.guestToken = token;
       await request.session.save();
 
-      // Store guest permission in database for auditing
-      await prisma.userPermission.upsert({
-        where: { 
-          id: `guest-perm-${invite.id}` 
-        },
-        create: {
-          id: `guest-perm-${invite.id}`,
-          userId: guestUser.id,
-          scopeType: invite.scopeType,
-          scopeId: invite.scopeId,
-          actions: invite.allowedActions,
-          expiresAt: invite.expiresAt,
-          inviteId: invite.id,
-        },
-        update: {
-          actions: invite.allowedActions,
-          expiresAt: invite.expiresAt,
-        },
-      }).catch(() => {
-        // If guest user doesn't exist, that's OK - we're using session-based auth
-      });
+      // Note: We don't create a UserPermission record because guests don't have
+      // a User record in the database. Permissions are checked via session data.
 
       logger.info(
         { inviteId: invite.id, scopeType: invite.scopeType, scopeId: invite.scopeId },

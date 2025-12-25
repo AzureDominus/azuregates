@@ -2,7 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { executeGateCommand, getGateStatus, type GateStatus } from '../drivers/executor.js';
-import { checkPermission, getAccessibleGateIds } from '../permissions/checker.js';
+import { checkPermission, getAccessibleGateIds, getAccessibleGateIdsForGuest } from '../permissions/checker.js';
 import { logAudit } from '../audit/logger.js';
 import { getCurrentUser, authPreHandler, activatedPreHandler } from '../auth/session.js';
 import { broadcastGateCommand, broadcastGateStatus } from './events.js';
@@ -31,6 +31,23 @@ function getClientIp(request: FastifyRequest): string {
   return request.ip;
 }
 
+/**
+ * Get accessible gate IDs for the current user, handling both regular users and guests.
+ */
+async function getAccessibleGates(user: ReturnType<typeof getCurrentUser>): Promise<Set<string>> {
+  if (!user) {
+    return new Set();
+  }
+  
+  // For guests, use their session scope
+  if (user.isGuest && user.guestScopeType && user.guestScopeId) {
+    return getAccessibleGateIdsForGuest(user.guestScopeType, user.guestScopeId);
+  }
+  
+  // For regular users, check database permissions
+  return getAccessibleGateIds(user.id, user.isAdmin);
+}
+
 const commandSchema = z.object({
   action: z.enum(['open', 'close', 'stop', 'toggle']),
 });
@@ -43,7 +60,7 @@ export async function gatesRoutes(app: FastifyInstance) {
   // List all locations (filtered by user permissions)
   app.get('/locations', async (request: FastifyRequest, reply: FastifyReply) => {
     const user = getCurrentUser(request);
-    const accessibleGateIds = await getAccessibleGateIds(user?.id, user?.isAdmin);
+    const accessibleGateIds = await getAccessibleGates(user);
 
     const locations = await prisma.location.findMany({
       include: {
@@ -80,7 +97,7 @@ export async function gatesRoutes(app: FastifyInstance) {
   // Get single location (filtered by user permissions)
   app.get('/locations/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const user = getCurrentUser(request);
-    const accessibleGateIds = await getAccessibleGateIds(user?.id, user?.isAdmin);
+    const accessibleGateIds = await getAccessibleGates(user);
 
     const location = await prisma.location.findUnique({
       where: { id: request.params.id },
@@ -119,7 +136,7 @@ export async function gatesRoutes(app: FastifyInstance) {
   // List areas in a location (filtered by user permissions)
   app.get('/locations/:id/areas', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const user = getCurrentUser(request);
-    const accessibleGateIds = await getAccessibleGateIds(user?.id, user?.isAdmin);
+    const accessibleGateIds = await getAccessibleGates(user);
 
     const areas = await prisma.area.findMany({
       where: { locationId: request.params.id },
@@ -140,7 +157,7 @@ export async function gatesRoutes(app: FastifyInstance) {
   // Get single area (filtered by user permissions)
   app.get('/areas/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const user = getCurrentUser(request);
-    const accessibleGateIds = await getAccessibleGateIds(user?.id, user?.isAdmin);
+    const accessibleGateIds = await getAccessibleGates(user);
 
     const area = await prisma.area.findUnique({
       where: { id: request.params.id },
@@ -168,7 +185,7 @@ export async function gatesRoutes(app: FastifyInstance) {
   // List gates in an area (filtered by user permissions)
   app.get('/areas/:id/gates', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const user = getCurrentUser(request);
-    const accessibleGateIds = await getAccessibleGateIds(user?.id, user?.isAdmin);
+    const accessibleGateIds = await getAccessibleGates(user);
 
     const gates = await prisma.gate.findMany({
       where: { areaId: request.params.id },
@@ -183,7 +200,7 @@ export async function gatesRoutes(app: FastifyInstance) {
   // Get all gates (flat list, filtered by user permissions)
   app.get('/gates', async (request: FastifyRequest, reply: FastifyReply) => {
     const user = getCurrentUser(request);
-    const accessibleGateIds = await getAccessibleGateIds(user?.id, user?.isAdmin);
+    const accessibleGateIds = await getAccessibleGates(user);
 
     // If user has no accessible gates, return empty array
     if (accessibleGateIds.size === 0 && !user?.isAdmin) {
@@ -214,7 +231,7 @@ export async function gatesRoutes(app: FastifyInstance) {
   // Get single gate (with permission check)
   app.get('/gates/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const user = getCurrentUser(request);
-    const accessibleGateIds = await getAccessibleGateIds(user?.id, user?.isAdmin);
+    const accessibleGateIds = await getAccessibleGates(user);
 
     const gate = await prisma.gate.findUnique({
       where: { id: request.params.id },

@@ -168,6 +168,8 @@ export const api = {
   getInvites: () => fetchJson<Invite[]>('/guest/invites'),
   deleteInvite: (id: string) => 
     fetchJson<{ success: boolean }>(`/guest/invites/${id}`, { method: 'DELETE' }),
+  regenerateInviteLink: (id: string) =>
+    fetchJson<{ success: boolean; invite: Invite }>(`/guest/invites/${id}/regenerate`, { method: 'POST' }),
 
   // Admin
   getUsers: () => fetchJson<AdminUser[]>('/admin/users'),
