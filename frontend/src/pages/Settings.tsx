@@ -510,6 +510,12 @@ export function Settings() {
                   onChange={handleYamlChange}
                   theme="vs-dark"
                   options={monacoOptions}
+                  loading={
+                    <div className="flex items-center justify-center h-[500px] bg-gray-900">
+                      <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
+                      <span className="ml-2 text-gray-400">Loading editor...</span>
+                    </div>
+                  }
                   onMount={(editor) => {
                     editorRef.current = editor;
                   }}
