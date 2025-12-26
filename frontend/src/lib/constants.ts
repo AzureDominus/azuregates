@@ -15,7 +15,7 @@ export const COPYRIGHT_YEAR = new Date().getFullYear();
 export const COPYRIGHT_TEXT = `© ${COPYRIGHT_YEAR} ${COMPANY_NAME}`;
 
 // PWA configuration
-export const PWA_THEME_COLOR = '#1a1a24';
+export const PWA_THEME_COLOR = '#00d2ff';
 export const PWA_BACKGROUND_COLOR = '#050508';
 
 // Cache versioning for PWA
