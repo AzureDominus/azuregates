@@ -74,7 +74,7 @@ export function Dashboard() {
   }
 
   return (
-    <div className="space-y-12 pb-12">
+    <div className="space-y-2 pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-4xl font-display font-bold text-white tracking-tight mb-1">Dashboard</h1>

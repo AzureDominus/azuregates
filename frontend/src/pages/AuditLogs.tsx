@@ -77,14 +77,14 @@ export function AuditLogs() {
               <table className="w-full text-sm min-w-[800px]">
                 <thead className="text-left border-b border-white/5 bg-surfaceHighlight/50">
                   <tr>
-                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider whitespace-nowrap">Time</th>
+                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider whitespace-nowrap w-[180px]">Time</th>
                     <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider">User</th>
                     <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider">Gate</th>
                     <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider">Action</th>
                     <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider">Result</th>
                     <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider whitespace-nowrap">Latency</th>
-                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider">IP</th>
-                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider">Details</th>
+                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider whitespace-nowrap">IP</th>
+                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider w-[300px]">Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
@@ -98,7 +98,7 @@ export function AuditLogs() {
                         className="transition-colors hover:bg-white/5 animate-in fade-in slide-in-from-bottom-2"
                         style={{ animationDelay: `${index * 20}ms` }}
                       >
-                        <td className="py-3 px-4 font-mono text-xs text-gray-500">
+                        <td className="py-3 px-4 font-mono text-xs text-gray-500 w-[180px]">
                           {new Date(log.createdAt).toLocaleString()}
                         </td>
                         <td className="py-3 px-4 font-display text-white whitespace-nowrap">
@@ -124,7 +124,7 @@ export function AuditLogs() {
                         <td className="py-3 px-4 font-mono text-xs text-gray-500 whitespace-nowrap">
                           {log.clientIp || '-'}
                         </td>
-                        <td className="py-3 px-4 font-mono text-xs text-gray-600 max-w-xs break-words">
+                        <td className="py-3 px-4 font-mono text-xs text-gray-600 w-[300px] break-words">
                           {log.result === 'failure' || log.result === 'denied'
                             ? log.errorMessage || '-'
                             : log.metadata?.message || '-'}
