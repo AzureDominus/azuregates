@@ -72,37 +72,67 @@ Version numbers are managed in two source-of-truth files:
 
 The service worker version file (`frontend/public/version.js`) is auto-generated from constants.ts during build.
 
+### Semantic Versioning
+
+Versions follow semantic versioning (MAJOR.MINOR.PATCH):
+- **MAJOR**: Breaking changes or significant new features
+- **MINOR**: New features, backward compatible
+- **PATCH**: Bug fixes and minor improvements
+
 ### Version Bump Workflow
 
-Versions are only bumped when explicitly requested via the VERSION_BUMP environment variable:
+Versions are only bumped when explicitly requested via build scripts. The build system supports three bump types:
 
 ```bash
 # Build WITHOUT version bump (default)
 cd frontend && bun run build
 cd backend && bun run build
 
-# Build WITH version bump
+# Build WITH version bump (automatically increments version)
+cd frontend && bun run build:bump:patch    # Increment patch (1.0.0 -> 1.0.1)
+cd backend && bun run build:bump:patch
+
+cd frontend && bun run build:bump:minor    # Increment minor (1.0.5 -> 1.1.0)
+cd backend && bun run build:bump:minor
+
+cd frontend && bun run build:bump:major    # Increment major (1.2.3 -> 2.0.0)
+cd backend && bun run build:bump:major
+
+# Shorthand (defaults to patch)
 cd frontend && bun run build:bump
 cd backend && bun run build:bump
 ```
 
-The `build:bump` script sets `VERSION_BUMP=1` and increments the patch version automatically.
+The bump scripts set `VERSION_BUMP=1` and `BUMP_TYPE=major|minor|patch` environment variables.
 
 ### Recommended Release Flow
 
 1. Make changes locally and test with `bun run dev`
-2. When ready to release, bump versions locally:
+2. When ready to release, decide on version bump type:
+   - Patch: Bug fixes, minor improvements (most common)
+   - Minor: New features, backward compatible
+   - Major: Breaking changes, significant rewrites
+3. Bump versions locally:
    ```bash
-   cd frontend && bun run build:bump
-   cd backend && bun run build:bump
+   # For a bug fix release
+   cd frontend && bun run build:bump:patch
+   cd backend && bun run build:bump:patch
+   
+   # For a feature release
+   cd frontend && bun run build:bump:minor
+   cd backend && bun run build:bump:minor
    ```
-3. Commit the version changes: `git add -A && git commit -m "vX.Y.Z: Description" && git push`
-4. Deploy to Pi (builds without bumping again):
+4. Commit the version changes: `git add -A && git commit -m "vX.Y.Z: Description" && git push`
+5. Deploy to Pi (builds without bumping again):
    ```bash
    /usr/bin/ssh pi@garagepi.local "cd /opt/gates && git pull && docker compose up -d --build"
    ```
 
 The Pi build uses `bun run build` (not `build:bump`), so it keeps the version you set locally.
+
+### Version File Generation
+
+The frontend build automatically generates `frontend/public/version.js` from `constants.ts`. This file is imported by the service worker for cache versioning. Do not edit `version.js` directly as it will be overwritten on each build.
 
 ## Development Workflow
 

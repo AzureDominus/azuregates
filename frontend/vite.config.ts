@@ -36,12 +36,26 @@ function syncVersionPlugin(): import('vite').Plugin {
       let info = getVersionInfo();
       
       // Auto-bump version when VERSION_BUMP flag is set
-      // Usage: VERSION_BUMP=1 bun run build
+      // Usage: VERSION_BUMP=1 BUMP_TYPE=patch bun run build (default: patch)
       if (process.env.VERSION_BUMP === '1' || process.env.VERSION_BUMP === 'true') {
         const oldVersion = info.version;
-        const parts = info.version.split('.');
-        parts[2] = String(parseInt(parts[2], 10) + 1);
-        const newVersion = parts.join('.');
+        const bumpType = process.env.BUMP_TYPE || 'patch';
+        
+        if (!['major', 'minor', 'patch'].includes(bumpType)) {
+          console.error(`Invalid BUMP_TYPE: ${bumpType}. Must be major, minor, or patch.`);
+          process.exit(1);
+        }
+        
+        const parts = info.version.split('.').map(Number);
+        let newVersion: string;
+        
+        if (bumpType === 'major') {
+          newVersion = `${parts[0] + 1}.0.0`;
+        } else if (bumpType === 'minor') {
+          newVersion = `${parts[0]}.${parts[1] + 1}.0`;
+        } else {
+          newVersion = `${parts[0]}.${parts[1]}.${parts[2] + 1}`;
+        }
         
         // Update constants.ts
         let constantsContent = fs.readFileSync(constantsPath, 'utf-8');
@@ -52,7 +66,7 @@ function syncVersionPlugin(): import('vite').Plugin {
         fs.writeFileSync(constantsPath, constantsContent);
         
         info.version = newVersion;
-        console.log(`\n📦 Auto-bumped version: ${oldVersion} → ${newVersion}\n`);
+        console.log(`\n📦 Auto-bumped version (${bumpType}): ${oldVersion} → ${newVersion}\n`);
       } else {
         console.log(`\n📄 Building with version ${info.version} (no bump)\n`);
       }

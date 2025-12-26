@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "build:bump": "VERSION_BUMP=1 bun run build",
+    "build:bump": "VERSION_BUMP=1 BUMP_TYPE=patch bun run build",
+    "build:bump:major": "VERSION_BUMP=1 BUMP_TYPE=major bun run build",
+    "build:bump:minor": "VERSION_BUMP=1 BUMP_TYPE=minor bun run build",
+    "build:bump:patch": "VERSION_BUMP=1 BUMP_TYPE=patch bun run build",
     "preview": "vite preview",
     "lint": "eslint src --ext .ts,.tsx"
   },

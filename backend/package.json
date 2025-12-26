@@ -6,7 +6,10 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "bun run src/build.ts",
-    "build:bump": "VERSION_BUMP=1 bun run src/build.ts",
+    "build:bump": "VERSION_BUMP=1 BUMP_TYPE=patch bun run src/build.ts",
+    "build:bump:major": "VERSION_BUMP=1 BUMP_TYPE=major bun run src/build.ts",
+    "build:bump:minor": "VERSION_BUMP=1 BUMP_TYPE=minor bun run src/build.ts",
+    "build:bump:patch": "VERSION_BUMP=1 BUMP_TYPE=patch bun run src/build.ts",
     "start": "node dist/main.js",
     "dev": "tsx watch src/main.ts",
     "lint": "eslint src --ext .ts",

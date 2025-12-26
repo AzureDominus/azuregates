@@ -25,9 +25,23 @@ function bumpVersion() {
   }
   
   const currentVersion = match[1];
-  const parts = currentVersion.split('.');
-  parts[2] = String(parseInt(parts[2], 10) + 1);
-  const newVersion = parts.join('.');
+  const bumpType = process.env.BUMP_TYPE || 'patch';
+  
+  if (!['major', 'minor', 'patch'].includes(bumpType)) {
+    console.error(`Invalid BUMP_TYPE: ${bumpType}. Must be major, minor, or patch.`);
+    process.exit(1);
+  }
+  
+  const parts = currentVersion.split('.').map(Number);
+  let newVersion: string;
+  
+  if (bumpType === 'major') {
+    newVersion = `${parts[0] + 1}.0.0`;
+  } else if (bumpType === 'minor') {
+    newVersion = `${parts[0]}.${parts[1] + 1}.0`;
+  } else {
+    newVersion = `${parts[0]}.${parts[1]}.${parts[2] + 1}`;
+  }
   
   const newContent = content.replace(
     /BACKEND_VERSION\s*=\s*['"][\d.]+['"]/,
@@ -35,7 +49,7 @@ function bumpVersion() {
   );
   
   fs.writeFileSync(versionPath, newContent);
-  console.log(`Backend version: ${currentVersion} -> ${newVersion}`);
+  console.log(`Backend version (${bumpType}): ${currentVersion} -> ${newVersion}`);
   return newVersion;
 }
 
