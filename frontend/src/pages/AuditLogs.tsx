@@ -74,17 +74,17 @@ export function AuditLogs() {
         <>
           <div className="glass-panel rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[800px]">
+              <table className="w-full text-sm min-w-[1000px]">
                 <thead className="text-left border-b border-white/5 bg-surfaceHighlight/50">
                   <tr>
-                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider whitespace-nowrap w-[180px]">Time</th>
-                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider">User</th>
-                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider">Gate</th>
-                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider">Action</th>
-                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider">Result</th>
-                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider whitespace-nowrap">Latency</th>
-                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider whitespace-nowrap">IP</th>
-                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider w-[300px]">Details</th>
+                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider min-w-[180px]">Time</th>
+                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider min-w-[120px]">User</th>
+                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider min-w-[120px]">Gate</th>
+                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider min-w-[80px]">Action</th>
+                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider min-w-[100px]">Result</th>
+                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider min-w-[80px]">Latency</th>
+                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider min-w-[140px]">IP</th>
+                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider min-w-[320px]">Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
@@ -98,33 +98,33 @@ export function AuditLogs() {
                         className="transition-colors hover:bg-white/5 animate-in fade-in slide-in-from-bottom-2"
                         style={{ animationDelay: `${index * 20}ms` }}
                       >
-                        <td className="py-3 px-4 font-mono text-xs text-gray-500 w-[180px]">
+                        <td className="py-3 px-4 font-mono text-xs text-gray-500 min-w-[180px]">
                           {new Date(log.createdAt).toLocaleString()}
                         </td>
-                        <td className="py-3 px-4 font-display text-white whitespace-nowrap">
+                        <td className="py-3 px-4 font-display text-white whitespace-nowrap min-w-[120px]">
                           {log.user?.displayName || log.user?.email || log.userId || '-'}
                         </td>
-                        <td className="py-3 px-4 font-display text-white whitespace-nowrap">
+                        <td className="py-3 px-4 font-display text-white whitespace-nowrap min-w-[120px]">
                           {log.gate?.name || log.gateId || '-'}
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 min-w-[80px]">
                           <Badge variant="default">
                             {log.action}
                           </Badge>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 min-w-[100px]">
                           <span className={`flex items-center gap-1.5 ${resultColor}`}>
                             <Icon icon={resultIcon} className="w-4 h-4" />
                             <span className="font-mono text-xs uppercase">{log.result}</span>
                           </span>
                         </td>
-                        <td className="py-3 px-4 font-mono text-xs text-gray-500 whitespace-nowrap">
+                        <td className="py-3 px-4 font-mono text-xs text-gray-500 whitespace-nowrap min-w-[80px]">
                           {log.latencyMs ? `${log.latencyMs}ms` : '-'}
                         </td>
-                        <td className="py-3 px-4 font-mono text-xs text-gray-500 whitespace-nowrap">
+                        <td className="py-3 px-4 font-mono text-xs text-gray-500 whitespace-nowrap min-w-[140px]">
                           {log.clientIp || '-'}
                         </td>
-                        <td className="py-3 px-4 font-mono text-xs text-gray-600 w-[300px] break-words">
+                        <td className="py-3 px-4 font-mono text-xs text-gray-600 min-w-[320px] break-words">
                           {log.result === 'failure' || log.result === 'denied'
                             ? log.errorMessage || '-'
                             : log.metadata?.message || '-'}
