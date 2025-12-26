@@ -507,18 +507,26 @@ export async function gatesRoutes(app: FastifyInstance) {
 
   // Get audit logs
   app.get('/audit-logs', async (request: FastifyRequest<{ Querystring: { gateId?: string; limit?: string; offset?: string } }>, reply: FastifyReply) => {
-    const { gateId, limit = '50', offset = '0' } = request.query;
+    const { gateId, limit = '20', offset = '0' } = request.query;
+    const take = Math.min(parseInt(limit, 10), 100);
+    const skip = parseInt(offset, 10);
 
-    const logs = await prisma.auditLog.findMany({
-      where: gateId ? { gateId } : undefined,
-      orderBy: { createdAt: 'desc' },
-      take: Math.min(parseInt(limit, 10), 100),
-      skip: parseInt(offset, 10),
-      include: {
-        gate: { select: { id: true, name: true } },
-        user: { select: { id: true, displayName: true, email: true } },
-      },
-    });
+    const where = gateId ? { gateId } : undefined;
+
+    // Get total count for pagination
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+        include: {
+          gate: { select: { id: true, name: true } },
+          user: { select: { id: true, displayName: true, email: true } },
+        },
+      }),
+      prisma.auditLog.count({ where }),
+    ]);
 
     // Transform logs to include guest info from metadata when user is null
     const transformedLogs = logs.map((log) => {
@@ -542,6 +550,11 @@ export async function gatesRoutes(app: FastifyInstance) {
       return log;
     });
 
-    return reply.send(transformedLogs);
+    return reply.send({
+      logs: transformedLogs,
+      total,
+      limit: take,
+      offset: skip,
+    });
   });
 }

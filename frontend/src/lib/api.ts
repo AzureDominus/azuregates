@@ -62,6 +62,13 @@ export interface AuditLog {
   user?: { id: string; displayName: string; email: string };
 }
 
+export interface AuditLogsResponse {
+  logs: AuditLog[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface CommandResult {
   success: boolean;
   gate: { id: string; name: string };
@@ -130,7 +137,7 @@ export const api = {
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.offset) searchParams.set('offset', String(params.offset));
     const query = searchParams.toString();
-    return fetchJson<AuditLog[]>(`/audit-logs${query ? `?${query}` : ''}`);
+    return fetchJson<AuditLogsResponse>(`/audit-logs${query ? `?${query}` : ''}`);
   },
 
   // Config

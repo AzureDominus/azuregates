@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a24"/>
+      <stop offset="100%" style="stop-color:#050508"/>
+    </linearGradient>
+    <linearGradient id="gateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d2ff"/>
+      <stop offset="100%" style="stop-color:#6366f1"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bgGrad)"/>
+  <g transform="translate(96, 96) scale(0.625)">
+    <rect x="64" y="128" width="384" height="320" rx="24" fill="none" stroke="url(#gateGrad)" stroke-width="24"/>
+    <rect x="40" y="96" width="432" height="48" rx="12" fill="url(#gateGrad)"/>
+    <rect x="128" y="176" width="24" height="224" rx="8" fill="url(#gateGrad)" opacity="0.8"/>
+    <rect x="200" y="176" width="24" height="224" rx="8" fill="url(#gateGrad)" opacity="0.8"/>
+    <rect x="288" y="176" width="24" height="224" rx="8" fill="url(#gateGrad)" opacity="0.8"/>
+    <rect x="360" y="176" width="24" height="224" rx="8" fill="url(#gateGrad)" opacity="0.8"/>
+    <rect x="32" y="448" width="448" height="16" rx="8" fill="url(#gateGrad)" opacity="0.5"/>
+    <path d="M440 64 Q480 64 480 104" stroke="url(#gateGrad)" stroke-width="12" fill="none" stroke-linecap="round" opacity="0.6"/>
+    <path d="M440 32 Q512 32 512 104" stroke="url(#gateGrad)" stroke-width="12" fill="none" stroke-linecap="round" opacity="0.4"/>
+  </g>
+</svg>

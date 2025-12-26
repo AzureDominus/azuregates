@@ -157,16 +157,16 @@ export function GuestAccess() {
               <Badge variant="default">
                 Expires in: {hoursRemaining}h {minutesRemaining}m
               </Badge>
-              <Badge variant="secondary">
+              {/* <Badge variant="secondary">
                 Actions: {scope.allowedActions.map(a => a.toUpperCase()).join(', ')}
-              </Badge>
+              </Badge> */}
             </div>
           </div>
 
           {/* Gates */}
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-150">
             <h2 className="text-xl font-display font-bold text-white flex items-center gap-3">
-              <span className="text-secondary">///</span>
+              <span className="text-gray-500 font-bold">///</span>
               Available Gates
             </h2>
 

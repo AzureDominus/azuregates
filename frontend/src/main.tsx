@@ -15,6 +15,40 @@ const queryClient = new QueryClient({
   },
 });
 
+// Register service worker for PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then((registration) => {
+      console.log('[App] Service worker registered:', registration.scope);
+
+      // Check for updates on page load
+      registration.update();
+
+      // Listen for new service worker installing
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New content is available, notify user
+              console.log('[App] New version available');
+              // The Layout component will handle showing the update notification
+            }
+          });
+        }
+      });
+    }).catch((error) => {
+      console.error('[App] Service worker registration failed:', error);
+    });
+
+    // Handle controller change (new SW activated)
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      console.log('[App] New service worker activated, reloading...');
+      window.location.reload();
+    });
+  });
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>

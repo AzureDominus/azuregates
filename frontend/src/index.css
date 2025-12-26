@@ -60,6 +60,20 @@ body {
   background: #555; 
 }
 
+/* Select dropdown option styling */
+select option {
+  background-color: #1a1a24;
+  color: #e0e0e0;
+  padding: 8px 12px;
+}
+
+select option:hover,
+select option:focus,
+select option:checked {
+  background-color: #252532;
+  color: #ffffff;
+}
+
 /* Glassmorphism Utilities */
 .glass-panel {
   background: rgba(15, 15, 22, 0.7);
@@ -83,6 +97,44 @@ body {
 .text-glow-cyan {
   text-shadow: 0 0 10px rgba(0, 210, 255, 0.5);
 }
+
+/* Animation Utilities */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInFromBottom {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.animate-in {
+  animation-duration: 0.3s;
+  animation-fill-mode: both;
+  animation-timing-function: ease-out;
+}
+
+.fade-in {
+  animation-name: fadeIn;
+}
+
+.slide-in-from-bottom-2 {
+  animation-name: slideInFromBottom;
+}
+
+.slide-up {
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
 
 /* Interactive States */
 .interactive {

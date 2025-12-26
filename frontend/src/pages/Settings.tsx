@@ -5,7 +5,7 @@ import { stringify, parse } from 'yaml';
 import Editor from '@monaco-editor/react';
 import { api, GatesConfig, ConfigGate } from '../lib/api';
 import { GateEditor } from '../components/GateEditor';
-import { StatusLight, Button } from '../components/ui';
+import { StatusLight, Button, Select } from '../components/ui';
 
 type EditorMode = 'visual' | 'yaml';
 
@@ -215,6 +215,7 @@ export function Settings() {
       <section className="glass-panel rounded-xl p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
+            <span className="text-gray-500 font-bold">///</span>
             <h2 className="text-sm font-mono text-gray-400 uppercase tracking-wider">System Status</h2>
           </div>
           
@@ -222,37 +223,24 @@ export function Settings() {
             <Icon icon="ph:spinner" className="w-5 h-5 animate-spin text-secondary" />
           ) : health ? (
             <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-              {/* Overall Status */}
-              <div className="flex items-center gap-2">
-                <StatusLight 
-                  variant={health.status === 'ok' ? 'success' : 'danger'} 
-                  pulse={health.status === 'ok'} 
-                  size="md" 
-                />
-                <span className={`text-sm font-medium ${health.status === 'ok' ? 'text-success' : 'text-danger'}`}>
-                  {health.status === 'ok' ? 'All Systems Go' : 'Issues Detected'}
-                </span>
-              </div>
-              
-              {/* Individual Checks - Only show database */}
-              {health.checks && (
-                <div className="flex items-center gap-4 border-l border-white/10 pl-4">
-                  {Object.entries(health.checks)
-                    .filter(([name]) => name.toLowerCase() === 'database')
-                    .map(([name, check]) => (
-                      <div key={name} className="flex items-center gap-2">
-                        <StatusLight 
-                          variant={check.status === 'ok' ? 'success' : check.status === 'warning' ? 'warning' : 'danger'} 
-                          size="sm" 
-                        />
-                        <span className="text-xs font-mono text-gray-400 uppercase">{name}</span>
-                        {check.latencyMs && (
-                          <span className="text-xs font-mono text-gray-600">{check.latencyMs}ms</span>
-                        )}
-                      </div>
-                    ))}
-                </div>
-              )}
+              {/* Database Status */}
+              {health.checks && Object.entries(health.checks)
+                .filter(([name]) => name.toLowerCase() === 'database')
+                .map(([name, check]) => (
+                  <div key={name} className="flex items-center gap-2">
+                    <StatusLight 
+                      variant={check.status === 'ok' ? 'success' : check.status === 'warning' ? 'warning' : 'danger'} 
+                      pulse={check.status === 'ok'}
+                      size="md" 
+                    />
+                    <span className={`text-sm font-medium ${check.status === 'ok' ? 'text-success' : 'text-danger'}`}>
+                      Database {check.status === 'ok' ? 'Connected' : 'Error'}
+                    </span>
+                    {check.latencyMs && (
+                      <span className="text-xs font-mono text-gray-600 ml-1">{check.latencyMs}ms</span>
+                    )}
+                  </div>
+                ))}
             </div>
           ) : null}
         </div>
@@ -262,15 +250,15 @@ export function Settings() {
       <section className="glass-panel rounded-xl p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <h2 className="text-xl font-display font-semibold text-white flex items-center gap-3">
-            <span className="text-secondary">///</span>
+            <div className="w-px h-4 bg-white/10 mx-2" />
             Configuration Editor
           </h2>
           <div className="flex flex-wrap items-center gap-2">
             {/* Editor Mode Toggle */}
-            <div className="flex items-center bg-surfaceHighlight rounded-lg p-1 border border-white/5">
+            <div className="flex items-center bg-surfaceHighlight rounded-lg p-1 border border-white/5 h-9">
               <button
                 onClick={() => setEditorMode('visual')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-mono rounded-md transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 h-full text-sm font-mono rounded-md transition-all cursor-pointer ${
                   editorMode === 'visual'
                     ? 'bg-secondary/20 text-secondary border border-secondary/30'
                     : 'text-gray-500 hover:text-gray-300'
@@ -281,7 +269,7 @@ export function Settings() {
               </button>
               <button
                 onClick={() => setEditorMode('yaml')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-mono rounded-md transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 h-full text-sm font-mono rounded-md transition-all cursor-pointer ${
                   editorMode === 'yaml'
                     ? 'bg-secondary/20 text-secondary border border-secondary/30'
                     : 'text-gray-500 hover:text-gray-300'
@@ -294,7 +282,7 @@ export function Settings() {
 
             <button
               onClick={() => setShowHistory(!showHistory)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-mono bg-surfaceHighlight hover:bg-white/10 border border-white/5 rounded-lg transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 h-9 text-sm font-mono bg-surfaceHighlight hover:bg-white/10 border border-white/5 rounded-lg transition-all cursor-pointer"
             >
               <Icon icon="ph:clock-counter-clockwise-bold" className="w-4 h-4" />
               <span className="hidden sm:inline">History</span>
@@ -303,7 +291,7 @@ export function Settings() {
             <button
               onClick={() => reloadMutation.mutate()}
               disabled={reloadMutation.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-mono bg-surfaceHighlight hover:bg-white/10 border border-white/5 rounded-lg transition-all disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-1.5 px-3 h-9 text-sm font-mono bg-surfaceHighlight hover:bg-white/10 border border-white/5 rounded-lg transition-all disabled:opacity-50 cursor-pointer"
             >
               {reloadMutation.isPending ? (
                 <Icon icon="ph:spinner" className="w-4 h-4 animate-spin" />
@@ -412,16 +400,14 @@ export function Settings() {
                     </div>
                     <div>
                       <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase tracking-wider">Log Level</label>
-                      <select
+                      <Select
                         value={localConfig.settings.logLevel}
-                        onChange={(e) => handleSettingsChange('logLevel', e.target.value)}
-                        className="w-full px-3 py-2.5 bg-surface border border-white/10 rounded-lg focus:outline-none focus:border-secondary/50 transition-colors text-white appearance-none cursor-pointer uppercase"
-                        style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' viewBox=\'0 0 24 24\'%3E%3Cpath fill=\'%236b7280\' d=\'M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}
+                        onChange={(e: any) => handleSettingsChange('logLevel', e.target.value)}
                       >
                         {['fatal', 'error', 'warn', 'info', 'debug', 'trace'].map((level) => (
                           <option key={level} value={level} className="uppercase">{level.toUpperCase()}</option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
                     <div className="flex items-center h-[42px]">
                       <label className="flex items-center gap-3 cursor-pointer group">
@@ -563,7 +549,7 @@ export function Settings() {
       {/* Config Schema Reference */}
       <section className="glass-panel rounded-xl p-6">
         <h2 className="text-xl font-display font-semibold text-white mb-4 flex items-center gap-3">
-          <span className="text-secondary">///</span>
+          <div className="w-px h-4 bg-white/10 mx-2" />
           Configuration Reference
         </h2>
         <div className="text-sm text-gray-400 space-y-6">

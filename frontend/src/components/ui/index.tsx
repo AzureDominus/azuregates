@@ -5,8 +5,10 @@
  * Uses Phosphor icons via Iconify for consistent iconography
  */
 
-import { forwardRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes, type ReactNode, useState, useRef, useEffect, Children, isValidElement } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
+import { AnimatePresence, motion } from 'framer-motion';
 
 // =============================================================================
 // ICON COMPONENT - Wrapper for Iconify/Phosphor icons
@@ -58,32 +60,17 @@ const statusSizes: Record<'sm' | 'md' | 'lg', number> = {
   lg: 16,
 };
 
-const statusInnerSizes: Record<'sm' | 'md' | 'lg', number> = {
-  sm: 4,
-  md: 6,
-  lg: 8,
-};
-
 export function StatusLight({ variant = 'success', pulse = false, size = 'md', className = '' }: StatusLightProps) {
   return (
     <span
-      className={`inline-flex items-center justify-center rounded-full ${pulse ? 'animate-pulse' : ''} ${className}`}
+      className={`inline-block rounded-full ${pulse ? 'animate-pulse' : ''} ${className}`}
       style={{
         width: statusSizes[size],
         height: statusSizes[size],
         backgroundColor: statusColors[variant],
         boxShadow: statusGlows[variant],
       }}
-    >
-      <span 
-        className="rounded-full" 
-        style={{
-          width: statusInnerSizes[size],
-          height: statusInnerSizes[size],
-          backgroundColor: 'rgba(255, 255, 255, 0.7)',
-        }}
-      />
-    </span>
+    />
   );
 }
 
@@ -232,46 +219,156 @@ IconButton.displayName = 'IconButton';
 // SELECT - Custom styled dropdown
 // =============================================================================
 
-interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'onChange'> {
   label?: string;
   error?: string;
+  onChange?: (e: { target: { value: string } }) => void;
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, error, className = '', children, ...props }, ref) => {
+  ({ label, error, className = '', children, value, onChange, ...props }, ref) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+    const containerRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+
+    // Extract options from children
+    const options = Children.toArray(children)
+      .filter(isValidElement)
+      .map((child: any) => ({ 
+        value: child.props.value, 
+        label: child.props.children 
+      }));
+
+    const selectedOption = options.find(opt => opt.value === value);
+
+    const updatePosition = () => {
+      if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        setCoords({
+          top: rect.bottom + window.scrollY,
+          left: rect.left + window.scrollX,
+          width: rect.width
+        });
+      }
+    };
+
+    useEffect(() => {
+      if (isOpen) {
+        updatePosition();
+        window.addEventListener('resize', updatePosition);
+        // Use absolute positioning so we don't need to update on scroll
+        // The dropdown will scroll with the page naturally
+        
+        return () => {
+          window.removeEventListener('resize', updatePosition);
+        };
+      }
+    }, [isOpen]);
+
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (
+          containerRef.current && 
+          !containerRef.current.contains(event.target as Node) &&
+          !(event.target as Element).closest('.select-dropdown-portal')
+        ) {
+          setIsOpen(false);
+        }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     return (
-      <div className="w-full">
+      <div className="w-full" ref={containerRef}>
         {label && (
           <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase tracking-wider">
             {label}
           </label>
         )}
         <div className="relative">
-          <select
-            ref={ref}
+          <button
+            ref={buttonRef}
+            type="button"
+            onClick={() => {
+              updatePosition();
+              setIsOpen(!isOpen);
+            }}
             className={`
-              w-full appearance-none
-              bg-surfaceHighlight border border-white/10 
-              rounded-lg px-3 py-2.5 pr-10
-              text-white font-sans
+              w-full flex items-center justify-between
+              bg-[#1a1a24] border border-white/10 
+              rounded-lg px-3 py-2.5
+              text-white font-sans text-left
               cursor-pointer
               transition-all duration-200
               hover:border-white/20
-              focus:border-secondary/50 focus:outline-none focus:ring-2 focus:ring-secondary/20
+              focus:outline-none focus:ring-2 focus:ring-[#00d2ff]/20
               disabled:opacity-50 disabled:cursor-not-allowed
-              ${error ? 'border-danger/50 focus:border-danger/50 focus:ring-danger/20' : ''}
+              ${error ? 'border-[#ff2a2a]/50 focus:ring-[#ff2a2a]/20' : ''}
+              ${isOpen ? 'border-[#00d2ff]/50 ring-2 ring-[#00d2ff]/20' : ''}
               ${className}
             `}
+          >
+            <span className="truncate">{selectedOption?.label || 'Select...'}</span>
+            <Icon 
+              icon="ph:caret-down" 
+              width={16} 
+              height={16} 
+              className={`text-gray-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          {isOpen && createPortal(
+            <AnimatePresence>
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.15 }}
+                className="select-dropdown-portal absolute z-[9999] bg-[#1a1a24] border border-white/10 rounded-lg shadow-xl overflow-hidden max-h-60 overflow-y-auto"
+                style={{
+                  top: coords.top + 4,
+                  left: coords.left,
+                  width: coords.width,
+                }}
+              >
+                {options.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      onChange?.({ target: { value: option.value } });
+                      setIsOpen(false);
+                    }}
+                    className={`
+                      w-full text-left px-3 py-2.5 text-sm transition-colors
+                      ${option.value === value 
+                        ? 'bg-secondary/10 text-secondary' 
+                        : 'text-gray-300 hover:bg-white/5 hover:text-white'}
+                    `}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </motion.div>
+            </AnimatePresence>,
+            document.body
+          )}
+
+          {/* Hidden native select for form compatibility if needed */}
+          <select
+            ref={ref}
+            value={value}
+            onChange={onChange as any}
+            className="sr-only"
             {...props}
           >
             {children}
           </select>
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-            <Icon icon="ph:caret-down" width={16} height={16} />
-          </div>
         </div>
         {error && (
-          <p className="mt-1 text-xs font-mono text-danger">{error}</p>
+          <p className="mt-1 text-xs font-mono" style={{ color: '#ff2a2a' }}>{error}</p>
         )}
       </div>
     );

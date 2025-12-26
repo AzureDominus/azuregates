@@ -101,6 +101,7 @@ export function GuestInvites() {
           <p className="text-gray-400 font-mono text-sm">Create and manage guest invite links</p>
         </div>
         <Button
+          variant="secondary"
           onClick={() => setShowCreateForm(true)}
           icon="ph:plus-bold"
         >
@@ -361,6 +362,7 @@ function CreateInviteForm({ gates, areas, locations, onSubmit, onCancel, isSubmi
               type="submit"
               disabled={isSubmitting || !scopeId || actions.length === 0}
               loading={isSubmitting}
+              variant="secondary"
               icon="ph:link-bold"
               className="flex-1"
             >

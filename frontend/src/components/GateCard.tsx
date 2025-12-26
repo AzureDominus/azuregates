@@ -87,7 +87,7 @@ export function GateCard({ gate, activeStatus }: GateCardProps) {
           <div>
             <div className="flex items-center gap-3 mb-1">
               <StatusLight 
-                variant={isActive ? 'info' : isDisabled ? 'neutral' : 'warning'}
+                variant={isActive ? 'info' : isDisabled ? 'neutral' : 'success'}
                 pulse={isActive}
                 size="md"
               />

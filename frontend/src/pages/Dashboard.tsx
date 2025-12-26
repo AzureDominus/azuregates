@@ -70,10 +70,10 @@ export function Dashboard() {
       </div>
 
       {locations.map((location, locIndex) => (
-        <div key={location.id} className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700" style={{ animationDelay: `${locIndex * 100}ms` }}>
+        <div key={location.id} className="space-y-6">
           <div className="flex items-center gap-4 border-b border-white/10 pb-2">
             <h2 className="text-2xl font-display font-bold text-white flex items-center gap-3">
-              <span className="text-secondary">///</span>
+              <span className="text-gray-500 font-bold">///</span>
               {location.name}
             </h2>
             {!location.enabled && (
@@ -82,19 +82,23 @@ export function Dashboard() {
           </div>
 
           {location.areas?.map((area, areaIndex) => (
-            <div key={area.id} className="space-y-4 pl-4 border-l-2 border-white/5">
-              <h3 className="text-lg font-display font-semibold text-gray-300 flex items-center gap-3">
-                {area.name}
+            <div key={area.id} className="space-y-8 md:pl-6 md:border-l-2 border-white/5 mb-16 last:mb-0 py-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-base font-display font-bold text-white uppercase tracking-wider shadow-sm">
+                    {area.name}
+                  </span>
+                </div>
                 {!area.enabled && (
                   <Badge variant="warning">Area Disabled</Badge>
                 )}
-              </h3>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {area.gates?.map((gate, gateIndex) => (
                   <div 
                     key={gate.id} 
-                    className="animate-in zoom-in-95 duration-500 fill-mode-backwards"
+                    className="fill-mode-backwards"
                     style={{ animationDelay: `${(locIndex * 200) + (areaIndex * 100) + (gateIndex * 50)}ms` }}
                   >
                     <GateCard 

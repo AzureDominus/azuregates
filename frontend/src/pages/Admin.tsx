@@ -70,8 +70,7 @@ export function Admin() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-display font-bold text-white tracking-tight mb-1 flex items-center gap-3">
-            <Icon icon="ph:users-fill" className="w-8 h-8 text-secondary" />
+          <h1 className="text-4xl font-display font-bold text-white tracking-tight mb-1">
             User Management
           </h1>
           <p className="text-gray-400 font-mono text-sm">Manage user access and permissions</p>
@@ -80,7 +79,7 @@ export function Admin() {
 
       {/* Pending Users Section */}
       {pendingUsers && pendingUsers.length > 0 && (
-        <div className="glass-panel rounded-xl border-primary/30 shadow-[0_0_30px_rgba(255,170,0,0.1)] animate-in fade-in slide-in-from-top-4">
+        <div className="glass-panel rounded-xl border-primary/30 shadow-[0_0_30px_rgba(255,170,0,0.1)]">
           <div className="p-4 border-b border-primary/20 flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Icon icon="ph:clock-fill" className="w-4 h-4 text-primary" />
@@ -217,9 +216,11 @@ function UserRow({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-xs font-mono text-gray-600">
-          {user._count.permissions} perm{user._count.permissions !== 1 ? 's' : ''}
-        </span>
+        {user._count.permissions > 0 && (
+          <span className="text-xs font-mono text-gray-600">
+            {user._count.permissions} Permission{user._count.permissions !== 1 ? 's' : ''}
+          </span>
+        )}
         {!user.isActivated && !user.isAdmin && (
           <Badge variant={user.activatedAt ? 'warning' : 'primary'}>
             {user.activatedAt ? 'Disabled' : 'Pending'}
