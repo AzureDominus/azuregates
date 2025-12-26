@@ -7,6 +7,7 @@ import Editor from '@monaco-editor/react';
 import { api, GatesConfig, ConfigGate } from '../lib/api';
 import { GateEditor } from '../components/GateEditor';
 import { StatusLight, Button, Select, Modal } from '../components/ui';
+import { APP_VERSION } from '../lib/constants';
 
 type EditorMode = 'visual' | 'yaml';
 
@@ -243,6 +244,13 @@ export function Settings() {
             <Icon icon="ph:spinner" className="w-5 h-5 animate-spin text-secondary" />
           ) : health ? (
             <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+              {/* Version Info */}
+              <div className="flex items-center gap-2 text-sm font-mono text-gray-500">
+                <span>Frontend v{APP_VERSION}</span>
+                <span className="text-gray-700">|</span>
+                <span>Backend v{health.version || '?'}</span>
+              </div>
+              
               {/* Database Status */}
               {health.checks && Object.entries(health.checks)
                 .filter(([name]) => name.toLowerCase() === 'database')

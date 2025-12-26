@@ -1,13 +1,18 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { config } from '../config/env.js';
+import { BACKEND_VERSION } from '../version.js';
 
 const GPIO_SERVICE_URL = process.env.GPIO_SERVICE_URL || 'http://172.17.0.1:5000';
 
 export async function healthRoutes(app: FastifyInstance) {
   // Basic health check
   app.get('/health', async (_request: FastifyRequest, reply: FastifyReply) => {
-    return reply.send({ status: 'ok', timestamp: new Date().toISOString() });
+    return reply.send({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      version: BACKEND_VERSION,
+    });
   });
 
   // Detailed health check (includes dependencies)
@@ -66,6 +71,7 @@ export async function healthRoutes(app: FastifyInstance) {
     return reply.status(isHealthy ? 200 : 503).send({
       status: isHealthy ? 'ok' : 'error',
       timestamp: new Date().toISOString(),
+      version: BACKEND_VERSION,
       checks,
     });
   });

@@ -64,6 +64,46 @@ bunx prisma db push
 
 Never use `npm install`, `npm run`, or `npx` - always use the bun equivalents.
 
+## Version Management
+
+Version numbers are managed in two source-of-truth files:
+- **Frontend**: `frontend/src/lib/constants.ts` (APP_VERSION)
+- **Backend**: `backend/src/version.ts` (BACKEND_VERSION)
+
+The service worker version file (`frontend/public/version.js`) is auto-generated from constants.ts during build.
+
+### Version Bump Workflow
+
+Versions are only bumped when explicitly requested via the VERSION_BUMP environment variable:
+
+```bash
+# Build WITHOUT version bump (default)
+cd frontend && bun run build
+cd backend && bun run build
+
+# Build WITH version bump
+cd frontend && bun run build:bump
+cd backend && bun run build:bump
+```
+
+The `build:bump` script sets `VERSION_BUMP=1` and increments the patch version automatically.
+
+### Recommended Release Flow
+
+1. Make changes locally and test with `bun run dev`
+2. When ready to release, bump versions locally:
+   ```bash
+   cd frontend && bun run build:bump
+   cd backend && bun run build:bump
+   ```
+3. Commit the version changes: `git add -A && git commit -m "vX.Y.Z: Description" && git push`
+4. Deploy to Pi (builds without bumping again):
+   ```bash
+   /usr/bin/ssh pi@garagepi.local "cd /opt/gates && git pull && docker compose up -d --build"
+   ```
+
+The Pi build uses `bun run build` (not `build:bump`), so it keeps the version you set locally.
+
 ## Development Workflow
 
 ### Raspberry Pi Deployment

@@ -79,6 +79,7 @@ export interface CommandResult {
 export interface HealthStatus {
   status: 'ok' | 'error';
   timestamp: string;
+  version?: string;
   checks?: Record<string, { status: string; latencyMs?: number; error?: string }>;
 }
 

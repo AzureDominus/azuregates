@@ -5,7 +5,8 @@
   "description": "Garage Gate Opener v2 - Backend API",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc",
+    "build": "bun run src/build.ts",
+    "build:bump": "VERSION_BUMP=1 bun run src/build.ts",
     "start": "node dist/main.js",
     "dev": "tsx watch src/main.ts",
     "lint": "eslint src --ext .ts",
