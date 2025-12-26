@@ -54,18 +54,58 @@ export async function oidcRoutes(app: FastifyInstance) {
       });
     }
 
+    // For non-guest users, re-check activation status from database
+    // This allows admins to approve users without requiring re-login
+    let isActivated = user.isActivated ?? false;
+    let wasEverActivated = user.wasEverActivated ?? false;
+    let isAdmin = user.isAdmin ?? false;
+
+    if (!user.isGuest && user.id) {
+      try {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { isActivated: true, activatedAt: true, isAdmin: true },
+        });
+
+        if (dbUser) {
+          isActivated = dbUser.isActivated;
+          wasEverActivated = !!dbUser.activatedAt;
+          isAdmin = dbUser.isAdmin;
+
+          // Update session if activation status changed
+          if (isActivated !== user.isActivated || isAdmin !== user.isAdmin) {
+            const session = request.session as any;
+            session.user = {
+              ...user,
+              isActivated,
+              wasEverActivated,
+              isAdmin,
+            };
+            await request.session.save();
+            logger.info(
+              { userId: user.id, isActivated, wasEverActivated, isAdmin },
+              'Updated session with current activation status'
+            );
+          }
+        }
+      } catch (err) {
+        logger.warn({ err, userId: user.id }, 'Failed to refresh activation status from database');
+        // Fall back to session data on error
+      }
+    }
+
     return reply.send({
       authenticated: true,
       user: {
         id: user.id,
         email: user.email,
         displayName: user.displayName,
-        isAdmin: user.isAdmin ?? false,
+        isAdmin,
         isGuest: user.isGuest ?? false,
         permissions: user.permissions ?? [],
         // Activation status for frontend to handle pending/disabled states
-        isActivated: user.isActivated ?? false,
-        wasEverActivated: user.wasEverActivated ?? false,
+        isActivated,
+        wasEverActivated,
       },
     });
   });

@@ -1,11 +1,34 @@
-import { ShieldX, LogOut } from 'lucide-react';
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ShieldX, LogOut, RefreshCw } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
 export function AccountDisabled() {
-  const { user, logout } = useAuth();
+  const { user, logout, isActivated, refetch } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect to dashboard if user becomes re-activated
+  useEffect(() => {
+    if (isActivated) {
+      navigate('/', { replace: true });
+    }
+  }, [isActivated, navigate]);
+
+  // Poll for activation status every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refetch();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [refetch]);
 
   const handleLogout = async () => {
     await logout();
+  };
+
+  const handleRefresh = () => {
+    refetch();
   };
 
   return (
@@ -31,13 +54,26 @@ export function AccountDisabled() {
           )}
         </div>
 
-        <button
-          onClick={handleLogout}
-          className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-gray-300"
-        >
-          <LogOut className="w-4 h-4" />
-          Sign Out
-        </button>
+        <div className="text-xs text-gray-600 mb-6">
+          This page checks for re-activation every 10 seconds.
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={handleRefresh}
+            className="flex items-center justify-center gap-2 flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors text-white"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Check Now
+          </button>
+          <button
+            onClick={handleLogout}
+            className="flex items-center justify-center gap-2 flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-gray-300"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
+        </div>
       </div>
     </div>
   );
