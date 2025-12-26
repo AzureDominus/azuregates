@@ -1,0 +1,14 @@
+[Unit]
+Description=Weekly System Maintenance Timer
+Documentation=https://github.com/AzureDominus/azuregates
+
+[Timer]
+# Run every Wednesday at 4:00 AM
+OnCalendar=Wed *-*-* 04:00:00
+# Add random delay up to 15 minutes to avoid thundering herd
+RandomizedDelaySec=900
+# Run immediately if we missed the last scheduled time
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,18 @@
+[Unit]
+Description=Weekly System Maintenance
+Documentation=https://github.com/AzureDominus/azuregates
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/gates/scripts/system-maintenance.sh
+User=root
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=system-maintenance
+
+# Give plenty of time for updates
+TimeoutStartSec=1800
