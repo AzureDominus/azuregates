@@ -38,6 +38,7 @@ function syncVersionPlugin(): import('vite').Plugin {
       // Auto-bump version when VERSION_BUMP flag is set
       // Usage: VERSION_BUMP=1 bun run build
       if (process.env.VERSION_BUMP === '1' || process.env.VERSION_BUMP === 'true') {
+        const oldVersion = info.version;
         const parts = info.version.split('.');
         parts[2] = String(parseInt(parts[2], 10) + 1);
         const newVersion = parts.join('.');
@@ -51,7 +52,7 @@ function syncVersionPlugin(): import('vite').Plugin {
         fs.writeFileSync(constantsPath, constantsContent);
         
         info.version = newVersion;
-        console.log(`\n📦 Auto-bumped version: ${info.version.replace(newVersion, info.version)} → ${newVersion}\n`);
+        console.log(`\n📦 Auto-bumped version: ${oldVersion} → ${newVersion}\n`);
       } else {
         console.log(`\n📄 Building with version ${info.version} (no bump)\n`);
       }
