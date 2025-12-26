@@ -1,11 +1,15 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, LogOut, RefreshCw } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
+const POLLING_DURATION_MS = 2 * 60 * 1000; // 2 minutes
+const POLLING_INTERVAL_MS = 10 * 1000; // 10 seconds
+
 export function PendingApproval() {
   const { user, logout, isActivated, refetch } = useAuth();
   const navigate = useNavigate();
+  const [isPolling, setIsPolling] = useState(true);
 
   // Redirect to dashboard if user becomes activated
   useEffect(() => {
@@ -14,13 +18,21 @@ export function PendingApproval() {
     }
   }, [isActivated, navigate]);
 
-  // Poll for activation status every 10 seconds
+  // Poll for activation status every 10 seconds, but only for first 2 minutes
   useEffect(() => {
     const interval = setInterval(() => {
       refetch();
-    }, 10000);
+    }, POLLING_INTERVAL_MS);
 
-    return () => clearInterval(interval);
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+      setIsPolling(false);
+    }, POLLING_DURATION_MS);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
   }, [refetch]);
 
   const handleLogout = async () => {
@@ -60,7 +72,10 @@ export function PendingApproval() {
             it will be automatically deleted.
           </p>
           <p className="mt-2 text-xs text-gray-600">
-            This page checks for approval every 10 seconds.
+            {isPolling 
+              ? 'This page is checking for approval every 10 seconds...'
+              : 'Use "Check Now" or refresh the page to check your status.'
+            }
           </p>
         </div>
 

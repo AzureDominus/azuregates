@@ -1,11 +1,15 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldX, LogOut, RefreshCw } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
+const POLLING_DURATION_MS = 2 * 60 * 1000; // 2 minutes
+const POLLING_INTERVAL_MS = 10 * 1000; // 10 seconds
+
 export function AccountDisabled() {
   const { user, logout, isActivated, refetch } = useAuth();
   const navigate = useNavigate();
+  const [isPolling, setIsPolling] = useState(true);
 
   // Redirect to dashboard if user becomes re-activated
   useEffect(() => {
@@ -14,13 +18,21 @@ export function AccountDisabled() {
     }
   }, [isActivated, navigate]);
 
-  // Poll for activation status every 10 seconds
+  // Poll for activation status every 10 seconds, but only for first 2 minutes
   useEffect(() => {
     const interval = setInterval(() => {
       refetch();
-    }, 10000);
+    }, POLLING_INTERVAL_MS);
 
-    return () => clearInterval(interval);
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+      setIsPolling(false);
+    }, POLLING_DURATION_MS);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
   }, [refetch]);
 
   const handleLogout = async () => {
@@ -55,7 +67,10 @@ export function AccountDisabled() {
         </div>
 
         <div className="text-xs text-gray-600 mb-6">
-          This page checks for re-activation every 10 seconds.
+          {isPolling 
+            ? 'This page is checking for re-activation every 10 seconds...'
+            : 'Use "Check Now" or refresh the page to check your status.'
+          }
         </div>
 
         <div className="flex gap-3">
