@@ -4,3 +4,4 @@
 - solder wires properly on the pi hat
 - check update workflow with images bulding in github actions or maybe just trigger local build
 - style authentik pages to match gates better
+- cant reach 30d option in select menu in guest modal

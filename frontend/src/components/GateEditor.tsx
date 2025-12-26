@@ -169,10 +169,17 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                 <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Open Pin</label>
                 <input
                   type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   min="0"
                   max="40"
                   value={getConfig().openPin ?? ''}
                   onChange={(e) => updateConfig('openPin', e.target.value ? parseInt(e.target.value) : undefined)}
+                  onKeyDown={(e) => {
+                    if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
                   placeholder="GPIO #"
                   className={`w-full px-3 py-2 bg-surfaceHighlight border rounded-lg text-white placeholder-gray-600 font-mono focus:outline-none focus:ring-1 ${
                     errors.openPin ? 'border-danger/50 focus:ring-danger/50' : 'border-white/10 focus:border-secondary/50 focus:ring-secondary/50'
@@ -184,10 +191,17 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                 <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Close Pin</label>
                 <input
                   type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   min="0"
                   max="40"
                   value={getConfig().closePin ?? ''}
                   onChange={(e) => updateConfig('closePin', e.target.value ? parseInt(e.target.value) : undefined)}
+                  onKeyDown={(e) => {
+                    if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
                   placeholder="GPIO #"
                   className={`w-full px-3 py-2 bg-surfaceHighlight border rounded-lg text-white placeholder-gray-600 font-mono focus:outline-none focus:ring-1 ${
                     errors.closePin ? 'border-danger/50 focus:ring-danger/50' : 'border-white/10 focus:border-secondary/50 focus:ring-secondary/50'
@@ -198,10 +212,17 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                 <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Stop Pin</label>
                 <input
                   type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   min="0"
                   max="40"
                   value={getConfig().stopPin ?? ''}
                   onChange={(e) => updateConfig('stopPin', e.target.value ? parseInt(e.target.value) : undefined)}
+                  onKeyDown={(e) => {
+                    if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
                   placeholder="GPIO #"
                   className="w-full px-3 py-2 bg-surfaceHighlight border border-white/10 rounded-lg text-white placeholder-gray-600 font-mono focus:outline-none focus:ring-1 focus:border-secondary/50 focus:ring-secondary/50"
                 />
@@ -210,10 +231,17 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                 <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Toggle Pin</label>
                 <input
                   type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   min="0"
                   max="40"
                   value={getConfig().togglePin ?? ''}
                   onChange={(e) => updateConfig('togglePin', e.target.value ? parseInt(e.target.value) : undefined)}
+                  onKeyDown={(e) => {
+                    if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
                   placeholder="GPIO #"
                   className="w-full px-3 py-2 bg-surfaceHighlight border border-white/10 rounded-lg text-white placeholder-gray-600 font-mono focus:outline-none focus:ring-1 focus:border-secondary/50 focus:ring-secondary/50"
                 />
@@ -225,10 +253,18 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                 <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Pulse Duration (ms)</label>
                 <input
                   type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   min="50"
                   max="5000"
+                  step="50"
                   value={getConfig().pulseDurationMs ?? 500}
                   onChange={(e) => updateConfig('pulseDurationMs', parseInt(e.target.value) || 500)}
+                  onKeyDown={(e) => {
+                    if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
                   className={`w-full px-3 py-2 bg-surfaceHighlight border rounded-lg text-white font-mono focus:outline-none focus:ring-1 ${
                     errors.pulseDurationMs ? 'border-danger/50 focus:ring-danger/50' : 'border-white/10 focus:border-secondary/50 focus:ring-secondary/50'
                   }`}
@@ -239,10 +275,18 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                 <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Hold Duration (ms)</label>
                 <input
                   type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   min="1000"
                   max="120000"
+                  step="1000"
                   value={getConfig().holdDurationMs ?? ''}
                   onChange={(e) => updateConfig('holdDurationMs', e.target.value ? parseInt(e.target.value) : undefined)}
+                  onKeyDown={(e) => {
+                    if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
                   placeholder="Optional"
                   className={`w-full px-3 py-2 bg-surfaceHighlight border rounded-lg text-white placeholder-gray-600 font-mono focus:outline-none focus:ring-1 ${
                     errors.holdDurationMs ? 'border-danger/50 focus:ring-danger/50' : 'border-white/10 focus:border-secondary/50 focus:ring-secondary/50'

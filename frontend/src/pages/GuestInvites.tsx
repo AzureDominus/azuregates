@@ -329,10 +329,17 @@ function CreateInviteForm({ gates, areas, locations, onSubmit, onCancel, isSubmi
           </label>
           <input
             type="number"
+            inputMode="numeric"
+            pattern="[0-9]*"
             min="1"
             max="100"
             value={maxUses || ''}
             onChange={(e) => setMaxUses(e.target.value ? parseInt(e.target.value) : undefined)}
+            onKeyDown={(e) => {
+              if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+                e.preventDefault();
+              }
+            }}
             placeholder="Unlimited"
             className="w-full bg-surfaceHighlight border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder-gray-600 focus:border-secondary/50 focus:outline-none transition-colors hover:border-white/20"
           />
