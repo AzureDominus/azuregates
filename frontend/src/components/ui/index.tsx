@@ -681,20 +681,15 @@ export function Modal({ children, onClose, title, className = '' }: ModalProps) 
             onClose();
           }
         }}
-        className={`
-          sm:hidden absolute bottom-0 left-0 right-0
-          glass-panel rounded-t-2xl border-t border-white/10 
-          max-h-[90vh] overflow-y-auto
-          shadow-[0_-10px_50px_rgba(0,0,0,0.5)]
-          ${className}
-        `}
+        className={`sm:hidden absolute bottom-0 left-0 right-0 glass-panel rounded-t-2xl border-t border-white/10 ${className}`}
       >
         {/* Handle */}
-        <div className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing sticky top-0 bg-[#1a1a24]/95 backdrop-blur-sm z-10">
+        <div className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing">
           <div className="w-10 h-1 rounded-full bg-white/20" />
         </div>
         
-        <div className="px-6 pb-6">
+        {/* Scrollable content */}
+        <div className="px-6 pb-6 max-h-[80vh] overflow-y-auto">
           {title && (
             <h2 className="text-lg font-display font-bold text-white mb-4">{title}</h2>
           )}
