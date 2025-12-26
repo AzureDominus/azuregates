@@ -29,14 +29,13 @@ log "Cleaning up..."
 apt-get autoremove -y -qq
 apt-get autoclean -qq
 
-# Clean old journal logs (keep last 7 days)
+# Clean old journal logs (keep last 30 days)
 log "Cleaning journal logs..."
-journalctl --vacuum-time=7d --quiet
+journalctl --vacuum-time=30d --quiet
 
 # Clean Docker resources (unused images, networks, build cache)
 log "Cleaning Docker resources..."
-docker system prune -f --filter "until=168h" || true
-
+docker system prune -f --filter "until=720h" || true
 # Check disk space
 DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}' | tr -d '%')
 log "Disk usage: ${DISK_USAGE}%"
