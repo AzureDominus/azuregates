@@ -17,6 +17,14 @@ export function Dashboard() {
     enabled: isReady, // Only fetch when authenticated
   });
 
+  const { data: config } = useQuery({
+    queryKey: ['config'],
+    queryFn: api.getConfig,
+    enabled: isReady,
+  });
+
+  const showStatusMessages = config?.settings?.showStatusMessages ?? true;
+
   if (!isReady || isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -103,7 +111,8 @@ export function Dashboard() {
                   >
                     <GateCard 
                       gate={gate} 
-                      activeStatus={getGateActiveStatus(gate.id)} 
+                      activeStatus={getGateActiveStatus(gate.id)}
+                      showStatusMessages={showStatusMessages}
                     />
                   </div>
                 ))}

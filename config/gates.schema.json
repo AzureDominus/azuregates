@@ -30,6 +30,11 @@
           "type": "boolean",
           "default": false,
           "description": "When true, all gate commands are disabled"
+        },
+        "showStatusMessages": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, show detailed status messages on gate cards after commands"
         }
       }
     },

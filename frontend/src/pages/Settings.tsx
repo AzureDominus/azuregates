@@ -405,7 +405,7 @@ export function Settings() {
                     <Icon icon="ph:sliders-fill" className="w-5 h-5 text-secondary" />
                     <h3 className="font-display font-medium text-white">Global Settings</h3>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                     <div>
                       <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase tracking-wider">Cooldown (ms)</label>
                       <input
@@ -451,7 +451,24 @@ export function Settings() {
                             <Icon icon="ph:check-bold" width={14} height={14} />
                           </div>
                         </div>
-                        <span className="text-sm font-mono text-gray-300 group-hover:text-white transition-colors">Maintenance Mode</span>
+                        <span className="text-sm font-mono text-gray-300 group-hover:text-white transition-colors whitespace-nowrap">Maintenance</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center h-[42px]">
+                      <label className="flex items-center gap-3 cursor-pointer group">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={localConfig.settings.showStatusMessages ?? true}
+                            onChange={(e) => handleSettingsChange('showStatusMessages', e.target.checked)}
+                            className="peer sr-only"
+                          />
+                          <div className="w-5 h-5 rounded bg-surface border border-white/20 transition-all group-hover:border-white/30 peer-checked:bg-success/20 peer-checked:border-success/50" />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity text-success">
+                            <Icon icon="ph:check-bold" width={14} height={14} />
+                          </div>
+                        </div>
+                        <span className="text-sm font-mono text-gray-300 group-hover:text-white transition-colors whitespace-nowrap">Status Messages</span>
                       </label>
                     </div>
                   </div>

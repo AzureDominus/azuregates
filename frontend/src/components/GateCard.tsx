@@ -6,9 +6,10 @@ import { StatusLight, ActionButton } from './ui';
 interface GateCardProps {
   gate: Gate;
   activeStatus?: GateStatus;
+  showStatusMessages?: boolean;
 }
 
-export function GateCard({ gate, activeStatus }: GateCardProps) {
+export function GateCard({ gate, activeStatus, showStatusMessages = true }: GateCardProps) {
   const queryClient = useQueryClient();
   const [lastResult, setLastResult] = useState<{ success: boolean; message?: string } | null>(null);
   const [remainingMs, setRemainingMs] = useState<number>(0);
@@ -136,7 +137,7 @@ export function GateCard({ gate, activeStatus }: GateCardProps) {
         </div>
 
         {/* Feedback Message */}
-        {lastResult && (
+        {showStatusMessages && lastResult && (
           <div 
             className="mt-4 text-center text-xs font-mono py-2 rounded border animate-in fade-in slide-in-from-bottom-2"
             style={{

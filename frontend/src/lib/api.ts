@@ -228,6 +228,7 @@ export interface GlobalSettings {
   defaultCooldownMs: number;
   logLevel: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
   maintenanceMode?: boolean;
+  showStatusMessages?: boolean;
 }
 
 export interface ConfigLocation {
