@@ -1,0 +1,13 @@
+[project]
+name = "gpio-service"
+version = "1.0.0"
+description = "GPIO Service for AzureGates"
+requires-python = ">=3.11"
+dependencies = [
+    "sdnotify>=0.3.2",
+    "rpi-gpio>=0.7.1",
+]
+
+[tool.uv]
+# Allow using system RPi.GPIO if building fails
+no-build-isolation = false
