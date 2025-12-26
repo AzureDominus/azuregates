@@ -21,6 +21,8 @@ export function Dashboard() {
     queryKey: ['config'],
     queryFn: api.getConfig,
     enabled: isReady,
+    // Refetch periodically to get global settings changes (maintenance mode, status messages)
+    refetchInterval: 30000, // 30 seconds
   });
 
   const { data: health } = useQuery({

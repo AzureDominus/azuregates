@@ -38,6 +38,17 @@ export function GuestAccess() {
     enabled: redeemed && !!scope,
   });
 
+  // Get global config for maintenance mode and status messages
+  const { data: config } = useQuery({
+    queryKey: ['config'],
+    queryFn: api.getConfig,
+    enabled: redeemed && !!scope,
+    refetchInterval: 30000, // 30 seconds - keep in sync with global settings
+  });
+
+  const showStatusMessages = config?.settings?.showStatusMessages ?? true;
+  const maintenanceMode = config?.settings?.maintenanceMode ?? false;
+
   // Redeem token on mount - only attempt once
   useEffect(() => {
     if (token && !attemptedRef.current) {
@@ -139,6 +150,14 @@ export function GuestAccess() {
         </div>
 
         <div className="max-w-2xl mx-auto space-y-8">
+          {/* Maintenance Mode Banner */}
+          {maintenanceMode && (
+            <div className="glass-panel rounded-xl p-4 border-warning/30 bg-warning/5 flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+              <Icon icon="ph:wrench-fill" className="w-5 h-5 text-warning" />
+              <span className="text-warning font-mono text-sm">System is in maintenance mode - commands are simulated</span>
+            </div>
+          )}
+
           {/* Header */}
           <div className="glass-panel rounded-2xl p-6 border-success/30 shadow-[0_0_30px_rgba(0,255,157,0.1)] animate-in fade-in slide-in-from-top-4">
             <div className="flex items-center gap-4 mb-4">
@@ -182,7 +201,11 @@ export function GuestAccess() {
                     className="animate-in zoom-in-95 duration-500 fill-mode-backwards"
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
-                    <GateCard gate={gate} />
+                    <GateCard 
+                      gate={gate} 
+                      showStatusMessages={showStatusMessages}
+                      maintenanceMode={maintenanceMode}
+                    />
                   </div>
                 ))}
               </div>
