@@ -36,21 +36,18 @@ docker compose up -d --build
 ```bash
 # Backend
 cd backend
-npm install
-npx prisma generate
-npx prisma db push
-npm run dev
+bun install
+bunx prisma generate
+bunx prisma db push
+bun run dev
 
 # Frontend (in another terminal)
 cd frontend
-npm install
-npm run dev
-
-# Mock Server (in another terminal)
-cd mock-server
-npm install
-npm start
+bun install
+bun run dev
 ```
+
+**Note:** The GPIO driver has a built-in maintenance/simulation mode for development. When `maintenanceMode: true` is set in `config/gates.yaml` or when `NODE_ENV=development`, GPIO operations are simulated.
 
 ## Project Structure
 
@@ -76,7 +73,8 @@ npm start
 │       └── lib/                # API client & utilities
 ├── proxy/
 │   └── Caddyfile               # Reverse proxy config
-└── mock-server/                # Webhook simulation for dev
+└── scripts/
+    └── gpio_service.py         # GPIO control service for Pi host
 ```
 
 ## Configuration
@@ -89,6 +87,7 @@ version: 1
 settings:
   defaultCooldownMs: 2000
   logLevel: info
+  maintenanceMode: false  # Set to true to simulate GPIO operations
 
 locations:
   - id: home
@@ -97,17 +96,15 @@ locations:
       - id: garage
         name: Garage
         gates:
-          - id: main-gate
-            name: Main Garage Door
-            driver: webhook
+          - id: north-gate
+            name: North Gate
+            driver: gpio
             capabilities: [open, close, stop]
             config:
-              endpoints:
-                open: http://mock-server:4000/gate/main-gate/open
-                close: http://mock-server:4000/gate/main-gate/close
-                stop: http://mock-server:4000/gate/main-gate/stop
-              method: POST
-              timeoutMs: 5000
+              openPin: 2
+              closePin: 3
+              holdDurationMs: 15000
+              activeHigh: false
 ```
 
 ## API Endpoints

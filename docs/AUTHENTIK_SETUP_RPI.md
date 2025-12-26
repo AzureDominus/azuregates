@@ -93,6 +93,25 @@ If using Cloudflare Tunnel, add both local and remote redirect URIs:
 | Token validity | `minutes=60` |
 | Scopes | `openid`, `profile`, `email` |
 
+### Add Groups Scope Mapping (Required for Admin Detection):
+
+The backend needs the user's groups in the token to detect admin status. Create a custom scope mapping:
+
+1. Go to **Customization** → **Property Mappings**
+2. Click **Create** → **Scope Mapping**
+3. Configure:
+
+| Field | Value |
+|-------|-------|
+| Name | `OAuth Groups` |
+| Scope name | `groups` |
+| Expression | `return {"groups": [group.name for group in request.user.ak_groups.all()]}` |
+
+4. Click **Create**
+5. Go back to your **Gates OIDC Provider** and edit it
+6. Under **Advanced protocol settings** → **Scopes**, add `OAuth Groups`
+7. Save the provider
+
 4. Click **Create**
 5. **Important:** Copy the Client ID and Client Secret!
 
@@ -129,10 +148,10 @@ Update these values with your Authentik provider settings:
 # Authentik OIDC Configuration
 AUTHENTIK_URL=http://authentik:9000
 AUTHENTIK_EXTERNAL_URL=http://garagepi.local:9000
-AUTHENTIK_CLIENT_ID=gates
+AUTHENTIK_CLIENT_ID=azure-gates
 AUTHENTIK_CLIENT_SECRET=your-generated-secret-here
-AUTHENTIK_SLUG=gates
-AUTHENTIK_ADMIN_GROUP=Gates Admins
+AUTHENTIK_SLUG=azure-gates
+AUTHENTIK_ADMIN_GROUP=gates-admin
 ```
 
 Restart the backend to apply:
@@ -147,7 +166,7 @@ docker compose -f docker-compose.prod.yml restart backend
 
 1. Go to **Directory** → **Groups**
 2. Click **Create**
-3. Set Name: `Gates Admins`
+3. Set Name: `gates-admin`
 4. Click **Create**
 
 ### 5.2: Create Your User
@@ -160,7 +179,7 @@ docker compose -f docker-compose.prod.yml restart backend
    - Email: your-email@example.com
 4. Click **Create**
 5. Click on the user, then **Set Password**
-6. Add the user to `Gates Admins` group under the **Groups** tab
+6. Add the user to `gates-admin` group under the **Groups** tab
 
 ## Step 6: Verify OIDC Configuration
 

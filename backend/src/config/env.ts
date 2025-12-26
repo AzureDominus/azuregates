@@ -15,7 +15,6 @@ const envSchema = z.object({
   AUTHENTIK_ADMIN_GROUP: z.string().default('gates-admin'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   CORS_ORIGIN: z.string().optional(),
-  MOCK_SERVER_URL: z.string().url().optional(),
   CONFIG_PATH: z.string().default('/app/config'),
   GATES_CONFIG_FILE: z.string().default('gates.yaml'),
   BASE_URL: z.string().url().default('http://localhost:3000'),
@@ -51,7 +50,6 @@ export const config = {
   },
   logLevel: parsed.data.LOG_LEVEL,
   corsOrigin: parsed.data.CORS_ORIGIN,
-  mockServerUrl: parsed.data.MOCK_SERVER_URL,
   configPath: configFilePath,
   configDir: parsed.data.CONFIG_PATH.endsWith('.yaml') || parsed.data.CONFIG_PATH.endsWith('.yml')
     ? parsed.data.CONFIG_PATH.substring(0, parsed.data.CONFIG_PATH.lastIndexOf('/'))

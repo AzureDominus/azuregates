@@ -45,6 +45,25 @@ The frontend is a React SPA served by nginx. The backend is a Fastify (Node.js/T
 | `scripts/` | Helper scripts including `gpio_service.py` which runs on the Pi host. |
 | `docs/` | Setup guides including Authentik configuration. |
 
+## Package Manager
+
+**Always use `bun` instead of `npm` or `yarn`.** Bun is the standard package manager for this project due to its speed and compatibility.
+
+```bash
+# Installing dependencies
+bun install
+
+# Running scripts
+bun run dev
+bun run build
+
+# Running binaries (like prisma)
+bunx prisma generate
+bunx prisma db push
+```
+
+Never use `npm install`, `npm run`, or `npx` - always use the bun equivalents.
+
 ## Development Workflow
 
 ### Raspberry Pi Deployment
@@ -102,11 +121,13 @@ You can develop locally without a Pi. The backend will simulate GPIO operations 
 
 ```bash
 # Backend (needs Prisma generate first)
-cd backend && npm install && npx prisma generate && npm run dev
+cd backend && bun install && bunx prisma generate && bun run dev
 
 # Frontend (in another terminal)
-cd frontend && npm install && npm run dev
+cd frontend && bun install && bun run dev
 ```
+
+**Important:** Always use `bun` instead of `npm` for package management. Bun is significantly faster and is the standard for this project.
 
 ## Critical Patterns
 
