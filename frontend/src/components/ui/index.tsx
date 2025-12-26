@@ -270,8 +270,15 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         updatePosition();
         window.addEventListener('resize', updatePosition);
         
+        // Close dropdown on scroll to prevent it from following
+        const handleScroll = () => {
+          setIsOpen(false);
+        };
+        window.addEventListener('scroll', handleScroll, true); // Use capture to catch all scrolls
+        
         return () => {
           window.removeEventListener('resize', updatePosition);
+          window.removeEventListener('scroll', handleScroll, true);
         };
       }
     }, [isOpen]);
@@ -724,6 +731,10 @@ interface ActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   action: ActionType;
   loading?: boolean;
   fullWidth?: boolean;
+  /** Progress 0-100 for fill effect during active operation */
+  progress?: number;
+  /** Whether this gate is currently active (opening/closing) */
+  isActive?: boolean;
 }
 
 const actionConfig: Record<ActionType, { icon: string; label: string; colors: string }> = {
@@ -749,9 +760,32 @@ const actionConfig: Record<ActionType, { icon: string; label: string; colors: st
   },
 };
 
+const activeLabels: Record<ActionType, string> = {
+  open: 'Opening...',
+  close: 'Closing...',
+  stop: 'Stopping...',
+  toggle: 'Toggling...',
+};
+
 export const ActionButton = forwardRef<HTMLButtonElement, ActionButtonProps>(
-  ({ action, loading, fullWidth, className = '', disabled, ...props }, ref) => {
+  ({ action, loading, fullWidth, progress, isActive, className = '', disabled, ...props }, ref) => {
     const config = actionConfig[action];
+    const showProgress = isActive && progress !== undefined && progress > 0;
+    
+    // Active colors for when progress is showing
+    const activeColors: Record<ActionType, string> = {
+      open: 'border-success/50 text-success',
+      close: 'border-primary/50 text-primary',
+      stop: 'border-danger/50 text-danger',
+      toggle: 'border-secondary/50 text-secondary',
+    };
+    
+    const progressColors: Record<ActionType, string> = {
+      open: 'bg-success/30',
+      close: 'bg-primary/30',
+      stop: 'bg-danger/30',
+      toggle: 'bg-secondary/30',
+    };
     
     return (
       <button
@@ -766,23 +800,35 @@ export const ActionButton = forwardRef<HTMLButtonElement, ActionButtonProps>(
           active:scale-95
           focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/50
           disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100
-          ${config.colors}
+          ${showProgress ? activeColors[action] : config.colors}
           ${fullWidth ? 'col-span-2' : ''}
           ${className}
         `}
         {...props}
       >
-        {loading ? (
-          <Icon icon="ph:spinner" className="w-6 h-6 animate-spin" />
-        ) : (
-          <Icon icon={config.icon} className="w-6 h-6 transition-transform group-hover/btn:scale-110 duration-300" />
+        {/* Progress fill from bottom */}
+        {showProgress && (
+          <div 
+            className={`absolute bottom-0 left-0 right-0 ${progressColors[action]} transition-all duration-100 ease-linear`}
+            style={{ height: `${100 - progress}%` }}
+          />
         )}
-        <span className="text-xs font-mono uppercase tracking-widest font-bold">
-          {config.label}
-        </span>
+        
+        <div className="relative z-10 flex flex-col items-center gap-2">
+          {loading ? (
+            <Icon icon="ph:spinner" className="w-6 h-6 animate-spin" />
+          ) : (
+            <Icon icon={config.icon} className="w-6 h-6 transition-transform group-hover/btn:scale-110 duration-300" />
+          )}
+          <span className="text-xs font-mono uppercase tracking-widest font-bold">
+            {showProgress ? activeLabels[action] : config.label}
+          </span>
+        </div>
         
         {/* Button internal glow effect */}
-        <div className="absolute inset-0 bg-gradient-to-t from-white/5 to-transparent opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none" />
+        {!showProgress && (
+          <div className="absolute inset-0 bg-gradient-to-t from-white/5 to-transparent opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none" />
+        )}
       </button>
     );
   }

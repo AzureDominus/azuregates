@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Icon } from '@iconify/react';
 import { api, type Gate, type GateAction, type GateStatus } from '../lib/api';
 import { StatusLight, ActionButton } from './ui';
 
@@ -8,14 +7,6 @@ interface GateCardProps {
   gate: Gate;
   activeStatus?: GateStatus;
 }
-
-const actionLabels: Record<GateAction, string> = {
-  open: 'Opening',
-  close: 'Closing',
-  stop: 'Stopping',
-  toggle: 'Toggling',
-  state: 'Checking',
-};
 
 export function GateCard({ gate, activeStatus }: GateCardProps) {
   const queryClient = useQueryClient();
@@ -62,6 +53,10 @@ export function GateCard({ gate, activeStatus }: GateCardProps) {
   const isDisabled = !gate.enabled;
   const capabilities = gate.capabilities as GateAction[];
   const isActive = !!activeStatus && remainingMs > 0;
+  
+  // Calculate progress (100% = just started, 0% = done)
+  const totalDuration = activeStatus ? activeStatus.estimatedEndTime - activeStatus.startTime : 0;
+  const progress = isActive && totalDuration > 0 ? (remainingMs / totalDuration) * 100 : 0;
 
   return (
     <div
@@ -98,53 +93,43 @@ export function GateCard({ gate, activeStatus }: GateCardProps) {
             </p>
           </div>
           
-          {isDisabled && (
+          {/* Timer in top right when active */}
+          {isActive && (
+            <div className="flex flex-col items-end">
+              <span className="text-2xl font-mono font-bold text-secondary tabular-nums">
+                {(remainingMs / 1000).toFixed(1)}s
+              </span>
+              <span className="text-[10px] font-mono text-secondary/70 uppercase tracking-wider">
+                remaining
+              </span>
+            </div>
+          )}
+          
+          {isDisabled && !isActive && (
             <span className="text-[10px] font-mono bg-yellow-900/30 text-yellow-500 border border-yellow-700/50 px-2 py-1 rounded uppercase tracking-wider">
               Offline
             </span>
           )}
         </div>
 
-        {/* Active Status Display */}
-        <div className={`mb-6 transition-all duration-300 ${isActive ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 h-0 overflow-hidden'}`}>
-          <div className="bg-secondary/10 border border-secondary/20 rounded-lg p-3 flex items-center gap-3">
-            <Icon icon="ph:spinner" className="w-5 h-5 text-secondary animate-spin" />
-            <div className="flex-1">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm font-medium text-secondary">
-                  {activeStatus ? actionLabels[activeStatus.action] : 'Processing...'}
-                </span>
-                <span className="text-xs font-mono text-secondary/70">
-                  {(remainingMs / 1000).toFixed(1)}s
-                </span>
-              </div>
-              <div className="h-1 w-full bg-secondary/20 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-secondary shadow-[0_0_8px_#00d2ff] transition-all duration-100 ease-linear"
-                  style={{ 
-                    width: activeStatus 
-                      ? `${(remainingMs / (activeStatus.estimatedEndTime - activeStatus.startTime)) * 100}%` 
-                      : '100%' 
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Controls Grid */}
         <div className="grid grid-cols-2 gap-3">
           {capabilities.filter((a): a is 'open' | 'close' | 'stop' | 'toggle' => a !== 'state').map((action) => {
             const isStop = action === 'stop';
+            const isThisActionActive = isActive && activeStatus?.action === action;
+            // Disable non-stop buttons while an action is in progress (either mutation pending or active status)
+            const shouldDisable = isDisabled || (!isStop && (commandMutation.isPending || isActive));
 
             return (
               <ActionButton
                 key={action}
                 action={action}
                 onClick={() => handleAction(action)}
-                disabled={isDisabled || (commandMutation.isPending && !isStop)}
-                loading={commandMutation.isPending && commandMutation.variables?.action === action}
+                disabled={shouldDisable}
+                loading={commandMutation.isPending && commandMutation.variables?.action === action && !isActive}
                 fullWidth={isStop}
+                isActive={isThisActionActive}
+                progress={isThisActionActive ? progress : undefined}
               />
             );
           })}
