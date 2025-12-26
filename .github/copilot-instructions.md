@@ -151,13 +151,13 @@ The production Raspberry Pi is accessible at `garagepi.local` with username `pi`
 # Navigate to the project
 cd /opt/gates
 
-# Pull latest changes and rebuild
+# Pull latest changes and rebuild (only rebuild the containers that changed)
 git pull
 docker compose down
-docker compose up -d --build
+docker compose up (updated containers) -d --build
 ```
 
-**Always build on the Pi** rather than pulling pre-built images from a registry. The Pi's network connection is slow, so building locally is faster than downloading large images. The `docker compose up -d --build` command will build the backend and frontend images directly on the Pi.
+**Always build on the Pi** rather than pulling pre-built images from a registry. The Pi's network connection is slow, so building locally is faster than downloading large images. The `docker compose up frontend -d --build` command will build the backend and frontend images directly on the Pi.
 
 ### Testing Changes
 
@@ -168,7 +168,7 @@ To deploy and test changes on the Pi:
 git add -A && git commit -m "Your changes" && git push
 
 # SSH to Pi and deploy
-/usr/bin/ssh pi@garagepi.local "cd /opt/gates && git pull && docker compose up -d --build"
+/usr/bin/ssh pi@garagepi.local "cd /opt/gates && git pull && docker compose up (updated containers) -d --build"
 
 # View logs
 /usr/bin/ssh pi@garagepi.local "cd /opt/gates && docker compose logs -f backend"
