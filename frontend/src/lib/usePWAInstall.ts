@@ -123,7 +123,6 @@ export function usePWAInstall(): PWAInstallState {
  */
 export function useServiceWorker() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [newWorker, setNewWorker] = useState<ServiceWorker | null>(null);
 
   useEffect(() => {
@@ -138,7 +137,6 @@ export function useServiceWorker() {
         });
         
         if (!mounted) return;
-        setRegistration(reg);
         console.log('[App] Service worker registered');
 
         // Check for updates immediately
