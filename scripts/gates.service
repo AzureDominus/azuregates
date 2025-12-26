@@ -9,6 +9,9 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=/opt/gates
 
+# Clean up orphaned Docker networks before starting
+ExecStartPre=/usr/bin/docker network prune -f
+
 # Start the stack with remote-access profile, follow logs to keep service running
 ExecStartPre=/usr/bin/docker compose --profile remote-access up -d --remove-orphans --wait
 ExecStart=/usr/bin/docker compose --profile remote-access logs -f
