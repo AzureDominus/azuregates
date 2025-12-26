@@ -116,48 +116,114 @@ export function usePWAInstall(): PWAInstallState {
 
 /**
  * Hook for managing service worker updates
+ * Implements proper update lifecycle similar to Vercel/modern PWAs:
+ * - Checks for updates on mount and periodically
+ * - Listens for new service worker installation
+ * - Provides method to apply updates (skipWaiting + reload)
  */
 export function useServiceWorker() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
+  const [newWorker, setNewWorker] = useState<ServiceWorker | null>(null);
 
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      // Register service worker
-      navigator.serviceWorker.register('/sw.js').then((reg) => {
+    if (!('serviceWorker' in navigator)) return;
+
+    let mounted = true;
+
+    async function registerServiceWorker() {
+      try {
+        const reg = await navigator.serviceWorker.register('/sw.js', {
+          updateViaCache: 'none', // Always fetch SW from network
+        });
+        
+        if (!mounted) return;
         setRegistration(reg);
         console.log('[App] Service worker registered');
 
-        // Check for updates periodically
-        setInterval(() => {
-          reg.update();
-        }, 60 * 60 * 1000); // Check every hour
-      }).catch((error) => {
-        console.error('[App] Service worker registration failed:', error);
-      });
+        // Check for updates immediately
+        reg.update().catch(console.error);
 
-      // Listen for controller change (new SW activated)
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        // Reload the page when new SW takes control
-        window.location.reload();
-      });
+        // Check for updates periodically (every 5 minutes in production)
+        const updateInterval = setInterval(() => {
+          reg.update().catch(console.error);
+        }, 5 * 60 * 1000);
 
-      // Listen for messages from service worker
-      navigator.serviceWorker.addEventListener('message', (event) => {
-        if (event.data?.type === 'SW_UPDATED') {
-          console.log('[App] Service worker updated to:', event.data.version);
+        // Handle new service worker installing
+        const handleUpdateFound = () => {
+          const installingWorker = reg.installing;
+          if (!installingWorker) return;
+
+          console.log('[App] New service worker installing...');
+
+          installingWorker.addEventListener('statechange', () => {
+            if (installingWorker.state === 'installed') {
+              if (navigator.serviceWorker.controller) {
+                // New update available
+                console.log('[App] New update available');
+                setNewWorker(installingWorker);
+                setUpdateAvailable(true);
+              } else {
+                // First install
+                console.log('[App] Service worker installed for the first time');
+              }
+            }
+          });
+        };
+
+        reg.addEventListener('updatefound', handleUpdateFound);
+
+        // If there's already a waiting worker, it means an update was ready
+        if (reg.waiting) {
+          setNewWorker(reg.waiting);
           setUpdateAvailable(true);
         }
-      });
+
+        return () => {
+          clearInterval(updateInterval);
+          reg.removeEventListener('updatefound', handleUpdateFound);
+        };
+      } catch (error) {
+        console.error('[App] Service worker registration failed:', error);
+      }
     }
+
+    // Listen for controller changes (new SW activated)
+    const handleControllerChange = () => {
+      console.log('[App] Service worker controller changed, reloading...');
+      window.location.reload();
+    };
+
+    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+
+    // Listen for messages from service worker
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'SW_UPDATED') {
+        console.log('[App] Service worker updated to:', event.data.version);
+        // If we get this message, the new SW is already active
+        // Reload to get the new version
+        window.location.reload();
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+
+    registerServiceWorker();
+
+    return () => {
+      mounted = false;
+      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      navigator.serviceWorker.removeEventListener('message', handleMessage);
+    };
   }, []);
 
   const applyUpdate = useCallback(() => {
-    if (registration?.waiting) {
-      // Tell the waiting SW to skip waiting
-      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-    }
-  }, [registration]);
+    if (!newWorker) return;
+    
+    console.log('[App] Applying update...');
+    // Tell the waiting SW to skip waiting and take over
+    newWorker.postMessage({ type: 'SKIP_WAITING' });
+  }, [newWorker]);
 
   return {
     updateAvailable,

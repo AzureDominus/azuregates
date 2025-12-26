@@ -156,8 +156,8 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </header>
 
-      {/* Mobile FAB Menu Trigger */}
-      <div className="fixed bottom-6 right-6 z-50 md:hidden">
+      {/* Mobile FAB Menu Trigger - use fixed-mobile class to prevent floating on scroll */}
+      <div className="fixed-mobile bottom-6 right-6 z-50 md:hidden">
         <button
           onClick={() => setMobileMenuOpen(true)}
           className="w-14 h-14 rounded-2xl glass-panel border border-secondary/30 text-secondary shadow-[0_0_20px_rgba(0,210,255,0.2)] flex items-center justify-center active:scale-95 transition-transform hover:bg-secondary/10"

@@ -1,19 +1,22 @@
 /**
  * AzureGates Service Worker
  * Provides offline caching, background sync, and API fallback logic
+ * 
+ * Update Strategy:
+ * - Uses a "stale-while-revalidate" approach for most assets
+ * - On install: caches core assets, then immediately activates (skipWaiting)
+ * - On activate: cleans old caches and notifies all clients
+ * - Clients should reload when they receive SW_UPDATED message
  */
 
 const APP_NAME = 'AzureGates';
 const APP_VERSION = '1.0.4';
 const CACHE_NAME = `gates-cache-v${APP_VERSION}`;
 
-// Assets to cache on install
+// Assets to cache on install - keep minimal for fast startup
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
-  '/icons/icon.svg',
-  '/icons/icon-192.svg',
-  '/icons/icon-512.svg',
 ];
 
 // API endpoints that should use cache-first strategy
@@ -28,10 +31,11 @@ const NO_CACHE_API_PATTERNS = [
   '/api/auth',
   '/api/guest/redeem',
   '/api/health',
+  '/api/events',
 ];
 
 /**
- * Install event - cache static assets
+ * Install event - cache static assets and activate immediately
  */
 self.addEventListener('install', (event) => {
   console.log(`[SW] Installing ${APP_NAME} v${APP_VERSION}`);
@@ -41,13 +45,15 @@ self.addEventListener('install', (event) => {
       console.log('[SW] Caching static assets');
       return cache.addAll(STATIC_ASSETS);
     }).then(() => {
+      // Skip waiting to activate immediately - critical for updates
+      console.log('[SW] Skipping wait to activate immediately');
       return self.skipWaiting();
     })
   );
 });
 
 /**
- * Activate event - clean up old caches
+ * Activate event - clean up old caches and claim all clients
  */
 self.addEventListener('activate', (event) => {
   console.log(`[SW] Activating ${APP_NAME} v${APP_VERSION}`);
@@ -63,9 +69,11 @@ self.addEventListener('activate', (event) => {
           })
       );
     }).then(() => {
+      // Claim all clients immediately
       return self.clients.claim();
     }).then(() => {
-      return self.clients.matchAll().then((clients) => {
+      // Notify all clients that the SW has been updated
+      return self.clients.matchAll({ type: 'window' }).then((clients) => {
         clients.forEach((client) => {
           client.postMessage({
             type: 'SW_UPDATED',

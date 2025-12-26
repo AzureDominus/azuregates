@@ -364,10 +364,29 @@ export class GpioDriver extends BaseDriver {
         abortController,
         config,
       });
+
+      // For long operations, return immediately like async hardware
+      // This allows the UI to show the progress bar
+      if (duration > 1000) {
+        // Set a timer to clear the operation tracking after the duration
+        setTimeout(() => {
+          const currentOp = activeGateOperations.get(gate.id);
+          if (currentOp && currentOp.pin === pin && currentOp.action === action && !currentOp.abortController.signal.aborted) {
+            activeGateOperations.delete(gate.id);
+            logger.debug({ gateId: gate.id, action }, 'Cleared simulated GPIO operation tracking');
+          }
+        }, duration);
+
+        return {
+          success: true,
+          message: `Simulated GPIO operation started on pin ${pin} for ${duration}ms (${action})`,
+          data: { simulated: true, pin, action, durationMs: duration, async: true },
+        };
+      }
     }
 
     try {
-      // Simulate the operation duration (interruptible via abort)
+      // For short operations, wait for completion
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(resolve, duration);
         abortController.signal.addEventListener('abort', () => {
@@ -392,8 +411,8 @@ export class GpioDriver extends BaseDriver {
       }
       throw err;
     } finally {
-      // Clear active operation tracking
-      if (action === 'open' || action === 'close') {
+      // Clear active operation tracking for short operations
+      if ((action === 'open' || action === 'close') && duration <= 1000) {
         activeGateOperations.delete(gate.id);
       }
     }

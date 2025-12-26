@@ -228,7 +228,7 @@ interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'onC
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ label, error, className = '', children, value, onChange, ...props }, ref) => {
     const [isOpen, setIsOpen] = useState(false);
-    const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+    const [coords, setCoords] = useState({ top: 0, left: 0, width: 0, openUpward: false });
     const containerRef = useRef<HTMLDivElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -242,13 +242,25 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
 
     const selectedOption = options.find(opt => opt.value === value);
 
+    // Estimate dropdown height (each option ~40px, max 320px)
+    const estimatedDropdownHeight = Math.min(options.length * 40, 320);
+
     const updatePosition = () => {
       if (buttonRef.current) {
         const rect = buttonRef.current.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const spaceBelow = viewportHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        
+        // Open upward if not enough space below and more space above
+        const openUpward = spaceBelow < estimatedDropdownHeight && spaceAbove > spaceBelow;
+        
         setCoords({
-          top: rect.bottom + window.scrollY,
-          left: rect.left + window.scrollX,
-          width: rect.width
+          // Use viewport coordinates for fixed positioning
+          top: openUpward ? rect.top - estimatedDropdownHeight - 4 : rect.bottom + 4,
+          left: rect.left,
+          width: rect.width,
+          openUpward,
         });
       }
     };
@@ -257,8 +269,6 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
       if (isOpen) {
         updatePosition();
         window.addEventListener('resize', updatePosition);
-        // Use absolute positioning so we don't need to update on scroll
-        // The dropdown will scroll with the page naturally
         
         return () => {
           window.removeEventListener('resize', updatePosition);
@@ -322,13 +332,13 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           {isOpen && createPortal(
             <AnimatePresence>
               <motion.div
-                initial={{ opacity: 0, y: -10 }}
+                initial={{ opacity: 0, y: coords.openUpward ? 10 : -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
+                exit={{ opacity: 0, y: coords.openUpward ? 10 : -10 }}
                 transition={{ duration: 0.15 }}
-                className="select-dropdown-portal absolute z-[9999] bg-[#1a1a24] border border-white/10 rounded-lg shadow-xl overflow-hidden max-h-60 overflow-y-auto"
+                className="select-dropdown-portal fixed z-[9999] bg-[#1a1a24] border border-white/10 rounded-lg shadow-xl overflow-hidden max-h-80 overflow-y-auto"
                 style={{
-                  top: coords.top + 4,
+                  top: coords.top,
                   left: coords.left,
                   width: coords.width,
                 }}

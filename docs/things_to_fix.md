@@ -5,3 +5,8 @@
 - check update workflow with images bulding in github actions or maybe just trigger local build
 - style authentik pages to match gates better
 - cant reach 30d option in select menu in guest modal
+- make build auto bump version numbers
+- confirm before deactiating or removing perms
+- confirm that you have unsaved changes in config before navigating away
+- pwa not updating properly truly fix this, fetch tool etc, see how vercel does it
+- hide scroll bar on main body for mobile

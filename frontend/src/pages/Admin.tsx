@@ -398,7 +398,11 @@ function UserDetails({ userId, onGrantPermission }: { userId: string; onGrantPer
                   </div>
                 </div>
                 <IconButton
-                  onClick={() => revokePermissionMutation.mutate(perm.id)}
+                  onClick={() => {
+                    if (confirm('Revoke this permission? The user will lose access to the associated gates.')) {
+                      revokePermissionMutation.mutate(perm.id);
+                    }
+                  }}
                   disabled={revokePermissionMutation.isPending}
                   icon="ph:trash-fill"
                   label="Revoke permission"

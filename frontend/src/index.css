@@ -65,7 +65,8 @@ body {
 /* Hide scrollbar on mobile (body and root) */
 @media (max-width: 767px) {
   body::-webkit-scrollbar,
-  html::-webkit-scrollbar {
+  html::-webkit-scrollbar,
+  *::-webkit-scrollbar {
     display: none;
   }
 
@@ -73,6 +74,12 @@ body {
   html {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
+  }
+
+  /* Ensure all scrollable containers hide scrollbar */
+  * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
 
@@ -294,6 +301,16 @@ input[type="range"]:focus::-webkit-slider-thumb {
 
 .h-safe-area-inset-bottom {
   height: env(safe-area-inset-bottom, 0);
+}
+
+/* Fixed position helper for mobile - prevents floating on scroll */
+.fixed-mobile {
+  position: fixed;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  will-change: transform;
 }
 
 #root {

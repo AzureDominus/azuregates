@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useBlocker } from '@tanstack/react-router';
 import { Icon } from '@iconify/react';
 import { stringify, parse } from 'yaml';
 import Editor from '@monaco-editor/react';
 import { api, GatesConfig, ConfigGate } from '../lib/api';
 import { GateEditor } from '../components/GateEditor';
-import { StatusLight, Button, Select } from '../components/ui';
+import { StatusLight, Button, Select, Modal } from '../components/ui';
 
 type EditorMode = 'visual' | 'yaml';
 
@@ -20,6 +21,25 @@ export function Settings() {
   const [editingGate, setEditingGate] = useState<{ locationIdx: number; areaIdx: number; gateIdx: number; gate: ConfigGate } | null>(null);
   const [localConfig, setLocalConfig] = useState<GatesConfig | null>(null);
   const editorRef = useRef<any>(null);
+
+  // Block navigation when there are unsaved changes
+  const { proceed, reset, status } = useBlocker({
+    shouldBlockFn: () => hasChanges,
+    withResolver: true,
+  });
+
+  // Warn on browser close/refresh with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasChanges]);
 
   // Fetch current config
   const { data: config, isLoading: configLoading } = useQuery({
@@ -606,6 +626,33 @@ export function Settings() {
           onSave={handleGateSave}
           onClose={() => setEditingGate(null)}
         />
+      )}
+
+      {/* Unsaved Changes Navigation Blocker */}
+      {status === 'blocked' && (
+        <Modal onClose={reset} title="Unsaved Changes">
+          <div className="space-y-4">
+            <p className="text-gray-300">
+              You have unsaved configuration changes. Are you sure you want to leave without saving?
+            </p>
+            <div className="flex gap-3 pt-2">
+              <Button
+                onClick={reset}
+                variant="secondary"
+                className="flex-1"
+              >
+                Stay
+              </Button>
+              <Button
+                onClick={proceed}
+                variant="danger"
+                className="flex-1"
+              >
+                Leave Without Saving
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

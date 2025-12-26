@@ -438,6 +438,10 @@ export async function gatesRoutes(app: FastifyInstance) {
       // Execute command via driver
       try {
         const result = await executeGateCommand(gate, action);
+        
+        // Broadcast status update after command starts (operation is now tracked)
+        // This allows the UI to show the progress bar for async operations
+        broadcastGateStatus();
 
         // Check if the driver reported failure
         if (!result.success) {
