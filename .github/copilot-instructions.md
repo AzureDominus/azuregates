@@ -107,14 +107,16 @@ The bump scripts set `VERSION_BUMP=1` and `BUMP_TYPE=major|minor|patch` environm
 
 ### Recommended Release Flow
 
+**IMPORTANT: Always bump versions LOCALLY first, then commit, then deploy to Pi.**
+
 1. Make changes locally and test with `bun run dev`
 2. When ready to release, decide on version bump type:
    - Patch: Bug fixes, minor improvements (most common)
    - Minor: New features, backward compatible
    - Major: Breaking changes, significant rewrites
-3. Bump versions locally:
+3. **Build with version bump locally** (this updates version files):
    ```bash
-   # For a bug fix release
+   # For a bug fix release (most common)
    cd frontend && bun run build:bump:patch
    cd backend && bun run build:bump:patch
    
@@ -122,13 +124,15 @@ The bump scripts set `VERSION_BUMP=1` and `BUMP_TYPE=major|minor|patch` environm
    cd frontend && bun run build:bump:minor
    cd backend && bun run build:bump:minor
    ```
-4. Commit the version changes: `git add -A && git commit -m "vX.Y.Z: Description" && git push`
-5. Deploy to Pi (builds without bumping again):
+4. **Commit the version changes**: `git add -A && git commit -m "vX.Y.Z: Description" && git push`
+5. **Deploy to Pi** (builds without bumping again - version already set):
    ```bash
    /usr/bin/ssh pi@garagepi.local "cd /opt/gates && git pull && docker compose up -d --build"
    ```
 
-The Pi build uses `bun run build` (not `build:bump`), so it keeps the version you set locally.
+**Never skip step 3** - the Pi build uses `bun run build` (not `build:bump`), so it won't bump the version. The version must be set locally before committing.
+
+**Do NOT commit code changes without bumping the version first.** This ensures the deployed version always matches the git commit.
 
 ### Version File Generation
 
