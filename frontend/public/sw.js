@@ -4,7 +4,7 @@
  */
 
 const APP_NAME = 'AzureGates';
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.2';
 const CACHE_NAME = `gates-cache-v${APP_VERSION}`;
 
 // Assets to cache on install

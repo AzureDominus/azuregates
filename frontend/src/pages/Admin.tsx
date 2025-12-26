@@ -382,13 +382,13 @@ function UserDetails({ userId, onGrantPermission }: { userId: string; onGrantPer
             {user.permissions.map((perm) => (
               <div 
                 key={perm.id}
-                className="flex items-center justify-between p-3 bg-surfaceHighlight/50 border border-white/5 rounded-lg"
+                className="flex items-center gap-2 p-3 bg-surfaceHighlight/50 border border-white/5 rounded-lg"
               >
-                <div>
-                  <div className="text-sm font-display font-medium text-white">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-display font-medium text-white truncate">
                     {perm.scopeType}: {perm.scopeName || perm.scopeId}
                   </div>
-                  <div className="text-xs font-mono text-gray-500">
+                  <div className="text-xs font-mono text-gray-500 truncate">
                     Actions: <span className="text-gray-400">{perm.actions.join(', ')}</span>
                     {perm.expiresAt && (
                       <span className="ml-2">

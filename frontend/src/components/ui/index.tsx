@@ -674,7 +674,7 @@ export function Modal({ children, onClose, title, className = '' }: ModalProps) 
         exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
         drag="y"
-        dragConstraints={{ top: 0 }}
+        dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 0.5 }}
         onDragEnd={(_, info) => {
           if (info.offset.y > 100 || info.velocity.y > 500) {
