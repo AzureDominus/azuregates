@@ -270,9 +270,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         updatePosition();
         window.addEventListener('resize', updatePosition);
         
-        // Close dropdown on scroll to prevent it from following
+        // Update position on scroll to keep dropdown anchored to button
         const handleScroll = () => {
-          setIsOpen(false);
+          updatePosition();
         };
         window.addEventListener('scroll', handleScroll, true); // Use capture to catch all scrolls
         
