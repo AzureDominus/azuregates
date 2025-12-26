@@ -1,7 +1,7 @@
 # Production Dockerfile
 # GPIO control is handled by a Python service running on the host
 # The backend calls the GPIO service via HTTP, no GPIO libraries needed in container
-FROM node:24-alpine AS builder
+FROM oven/bun:1-alpine AS builder
 
 WORKDIR /app
 
@@ -9,24 +9,24 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++
 
 # Copy package files
-COPY package*.json ./
+COPY package.json bun.lock* ./
 COPY prisma ./prisma/
 
 # Install dependencies
-RUN npm ci
+RUN bun install --frozen-lockfile
 
 # Generate Prisma client
-RUN npx prisma generate
+RUN bunx prisma generate
 
 # Copy source
 COPY tsconfig.json ./
 COPY src ./src
 
 # Build
-RUN npm run build
+RUN bun run build
 
 # Production image
-FROM node:24-alpine
+FROM oven/bun:1-alpine
 
 WORKDIR /app
 
@@ -34,19 +34,19 @@ WORKDIR /app
 RUN apk add --no-cache dumb-init
 
 # Copy package files and install production deps only
-COPY package*.json ./
+COPY package.json bun.lock* ./
 COPY prisma ./prisma/
-RUN npm ci --omit=dev && npm cache clean --force
+RUN bun install --frozen-lockfile --production
 
 # Generate Prisma client
-RUN npx prisma generate
+RUN bunx prisma generate
 
 # Copy built files
 COPY --from=builder /app/dist ./dist
 
 # Run as non-root user for security (no GPIO device access needed)
-# The 'node' user (UID 1000) already exists in node:alpine and matches the 'pi' user on Raspberry Pi
-USER node
+# The 'bun' user exists in oven/bun images
+USER bun
 
 EXPOSE 3001
 

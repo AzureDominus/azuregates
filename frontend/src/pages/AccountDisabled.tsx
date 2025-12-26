@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ShieldX, LogOut, RefreshCw } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { Icon } from '@iconify/react';
 import { useAuth } from '../lib/auth';
+import { Button } from '../components/ui';
 
 const POLLING_DURATION_MS = 2 * 60 * 1000; // 2 minutes
 const POLLING_INTERVAL_MS = 10 * 1000; // 10 seconds
@@ -14,7 +15,7 @@ export function AccountDisabled() {
   // Redirect to dashboard if user becomes re-activated
   useEffect(() => {
     if (isActivated) {
-      navigate('/', { replace: true });
+      navigate({ to: '/', replace: true });
     }
   }, [isActivated, navigate]);
 
@@ -44,50 +45,49 @@ export function AccountDisabled() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-gray-800 rounded-lg border border-gray-700 p-8 text-center">
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute inset-0 bg-background z-[-1]" />
+      {/* Ambient Background */}
+      <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-[-1]">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-danger/5 blur-[120px] animate-pulse-slow" />
+      </div>
+
+      <div className="glass-panel max-w-md w-full rounded-2xl p-8 text-center border-danger/30 shadow-[0_0_50px_rgba(255,42,42,0.1)]">
         <div className="flex justify-center mb-6">
-          <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center">
-            <ShieldX className="w-8 h-8 text-red-400" />
+          <div className="w-20 h-20 bg-danger/10 rounded-2xl border border-danger/20 flex items-center justify-center animate-float">
+            <Icon icon="ph:shield-slash-fill" className="w-10 h-10 text-danger" />
           </div>
         </div>
-
-        <h1 className="text-2xl font-bold text-white mb-2">Account Disabled</h1>
         
-        <p className="text-gray-400 mb-6">
-          Your account has been disabled by an administrator. Please contact an admin if you believe this is a mistake.
+        <h1 className="text-3xl font-display font-bold text-white mb-2 tracking-wide">Account Disabled</h1>
+        <p className="text-gray-400 font-mono text-sm mb-6">
+          The account <span className="text-white font-bold">{user?.email}</span> has been deactivated.
         </p>
 
-        <div className="bg-gray-700/50 rounded-lg p-4 mb-6">
-          <div className="text-sm text-gray-400 mb-1">Signed in as</div>
-          <div className="font-medium text-white">{user?.displayName || user?.email || 'Unknown'}</div>
-          {user?.email && user?.displayName && (
-            <div className="text-sm text-gray-400">{user.email}</div>
-          )}
+        <div className="bg-surfaceHighlight/50 rounded-xl p-4 mb-8 border border-white/5">
+          <p className="text-xs text-gray-500 font-mono leading-relaxed">
+            Your access privileges have been revoked by an administrator. Please contact support if you believe this is an error.
+          </p>
         </div>
 
-        <div className="text-xs text-gray-600 mb-6">
-          {isPolling 
-            ? 'This page is checking for re-activation every 10 seconds...'
-            : 'Use "Check Now" or refresh the page to check your status.'
-          }
-        </div>
-
-        <div className="flex gap-3">
-          <button
+        <div className="space-y-3">
+          <Button
             onClick={handleRefresh}
-            className="flex items-center justify-center gap-2 flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors text-white"
+            variant="ghost"
+            icon={isPolling ? "ph:spinner" : "ph:arrows-clockwise-bold"}
+            className={`w-full ${isPolling ? '[&_svg]:animate-spin' : ''}`}
           >
-            <RefreshCw className="w-4 h-4" />
-            Check Now
-          </button>
-          <button
+            Check Status
+          </Button>
+          
+          <Button
             onClick={handleLogout}
-            className="flex items-center justify-center gap-2 flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-gray-300"
+            variant="ghost"
+            icon="ph:sign-out-bold"
+            className="w-full text-gray-500 hover:text-white border-transparent hover:border-white/10"
           >
-            <LogOut className="w-4 h-4" />
             Sign Out
-          </button>
+          </Button>
         </div>
       </div>
     </div>

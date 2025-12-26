@@ -10,13 +10,14 @@
     "lint": "eslint src --ext .ts,.tsx"
   },
   "dependencies": {
+    "@iconify/react": "^6.0.2",
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-query": "^5.90.12",
-    "lucide-react": "^0.513.0",
+    "@tanstack/react-router": "^1.143.11",
+    "framer-motion": "^12.23.26",
     "monaco-yaml": "^5.4.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-router-dom": "^7.11.0",
     "yaml": "^2.8.2"
   },
   "devDependencies": {

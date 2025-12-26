@@ -1,14 +1,15 @@
 import { useEffect, useState, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearch } from '@tanstack/react-router';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Loader2, AlertCircle, CheckCircle, DoorOpen } from 'lucide-react';
+import { Icon } from '@iconify/react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { GateCard } from '../components/GateCard';
+import { Badge } from '../components/ui';
 
 export function GuestAccess() {
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
+  const search = useSearch({ strict: false }) as { token?: string };
+  const token = search.token ?? null;
   const { refetch: refetchAuth } = useAuth();
   const [redeemed, setRedeemed] = useState(false);
   const attemptedRef = useRef(false);
@@ -47,11 +48,14 @@ export function GuestAccess() {
 
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900 px-4">
-        <div className="max-w-md w-full bg-gray-800 rounded-lg p-6 border border-gray-700 text-center">
-          <AlertCircle className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
-          <h1 className="text-xl font-bold mb-2">Invalid Access Link</h1>
-          <p className="text-gray-400">
+      <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-background z-[-1]" />
+        <div className="glass-panel max-w-md w-full rounded-2xl p-8 text-center border-danger/30">
+          <div className="w-16 h-16 rounded-full bg-danger/10 flex items-center justify-center mx-auto mb-6">
+            <Icon icon="ph:warning-circle-fill" className="w-8 h-8 text-danger" />
+          </div>
+          <h1 className="text-2xl font-display font-bold text-white mb-2">Invalid Access Link</h1>
+          <p className="text-gray-400 font-mono text-sm">
             This guest access link is missing a token. Please request a new link.
           </p>
         </div>
@@ -61,10 +65,14 @@ export function GuestAccess() {
 
   if (redeemMutation.isPending || (redeemed && scopeLoading)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-400 mx-auto mb-4" />
-          <p className="text-gray-400">Validating your access...</p>
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-background z-[-1]" />
+        <div className="text-center space-y-4">
+          <div className="relative w-16 h-16 mx-auto">
+            <div className="absolute inset-0 border-4 border-white/10 rounded-full" />
+            <div className="absolute inset-0 border-4 border-t-primary rounded-full animate-spin" />
+          </div>
+          <p className="text-primary font-mono text-sm tracking-widest uppercase animate-pulse">Validating Access Credentials...</p>
         </div>
       </div>
     );
@@ -76,12 +84,15 @@ export function GuestAccess() {
       : 'Unknown error';
     
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900 px-4">
-        <div className="max-w-md w-full bg-gray-800 rounded-lg p-6 border border-red-600 text-center">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h1 className="text-xl font-bold mb-2">Access Denied</h1>
-          <p className="text-gray-400 mb-4">{errorMessage}</p>
-          <p className="text-sm text-gray-500">
+      <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-background z-[-1]" />
+        <div className="glass-panel max-w-md w-full rounded-2xl p-8 text-center border-danger/30 shadow-[0_0_50px_rgba(255,42,42,0.1)]">
+          <div className="w-16 h-16 rounded-full bg-danger/10 flex items-center justify-center mx-auto mb-6 animate-bounce">
+            <Icon icon="ph:warning-circle-fill" className="w-8 h-8 text-danger" />
+          </div>
+          <h1 className="text-2xl font-display font-bold text-white mb-2">Access Denied</h1>
+          <p className="text-danger font-mono text-sm mb-6">{errorMessage}</p>
+          <p className="text-xs text-gray-500 font-mono uppercase tracking-widest">
             This link may have expired or already been used.
           </p>
         </div>
@@ -119,38 +130,60 @@ export function GuestAccess() {
     const minutesRemaining = Math.max(0, Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60)));
 
     return (
-      <div className="min-h-screen bg-gray-900 p-4">
-        <div className="max-w-2xl mx-auto">
+      <div className="min-h-screen p-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-background z-[-1]" />
+        {/* Ambient Background */}
+        <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-[-1]">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-secondary/5 blur-[120px] animate-pulse-slow" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-primary/5 blur-[120px] animate-pulse-slow" style={{ animationDelay: '1.5s' }} />
+        </div>
+
+        <div className="max-w-2xl mx-auto space-y-8">
           {/* Header */}
-          <div className="bg-gray-800 rounded-lg p-4 border border-green-600 mb-6">
-            <div className="flex items-center gap-3 mb-3">
-              <CheckCircle className="w-6 h-6 text-green-400" />
-              <h1 className="text-xl font-bold">Guest Access Granted</h1>
+          <div className="glass-panel rounded-2xl p-6 border-success/30 shadow-[0_0_30px_rgba(0,255,157,0.1)] animate-in fade-in slide-in-from-top-4">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center border border-success/20">
+                <Icon icon="ph:check-circle-fill" className="w-6 h-6 text-success" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-display font-bold text-white tracking-wide">Guest Access Granted</h1>
+                <p className="text-gray-400 font-mono text-sm">
+                  Scope: <strong className="text-white">{scope.scopeDetails?.name || scope.scopeId}</strong>
+                </p>
+              </div>
             </div>
-            <p className="text-gray-400 text-sm">
-              You have access to <strong>{scope.scopeDetails?.name || scope.scopeId}</strong>
-            </p>
-            <p className="text-gray-500 text-xs mt-2">
-              Access expires in {hoursRemaining}h {minutesRemaining}m • 
-              Allowed actions: {scope.allowedActions.join(', ')}
-            </p>
+            
+            <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-white/5">
+              <Badge variant="default">
+                Expires in: {hoursRemaining}h {minutesRemaining}m
+              </Badge>
+              <Badge variant="secondary">
+                Actions: {scope.allowedActions.map(a => a.toUpperCase()).join(', ')}
+              </Badge>
+            </div>
           </div>
 
           {/* Gates */}
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <DoorOpen className="w-5 h-5" />
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-150">
+            <h2 className="text-xl font-display font-bold text-white flex items-center gap-3">
+              <span className="text-secondary">///</span>
               Available Gates
             </h2>
 
             {allowedGates.length === 0 ? (
-              <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 text-center text-gray-400">
-                No gates available for your access scope.
+              <div className="glass-panel rounded-xl p-8 text-center border-white/5">
+                <p className="text-gray-400 font-mono">No gates available for your access scope.</p>
               </div>
             ) : (
-              <div className="grid gap-4">
-                {allowedGates.map((gate) => (
-                  <GateCard key={gate.id} gate={gate} />
+              <div className="grid gap-6">
+                {allowedGates.map((gate, index) => (
+                  <div 
+                    key={gate.id}
+                    className="animate-in zoom-in-95 duration-500 fill-mode-backwards"
+                    style={{ animationDelay: `${index * 100}ms` }}
+                  >
+                    <GateCard gate={gate} />
+                  </div>
                 ))}
               </div>
             )}

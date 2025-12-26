@@ -156,6 +156,14 @@ Gate drivers in `backend/src/drivers/` implement the `GateDriver` interface from
 - Use Zod for runtime validation of request bodies and configuration
 - Fastify routes use the plugin pattern - each route file exports an async function that registers routes
 
+### TypeScript (Frontend)
+- Use TanStack Router for navigation - import from `@tanstack/react-router`
+- Navigate with `navigate({ to: '/path', replace: true })` not `navigate('/path', { replace: true })`
+- Access route params with `getRouteApi('/parent/child/$param')` then `routeApi.useParams()`
+- Access search params with `useSearch({ strict: false })` which returns typed object
+- Use `Link` component from `@tanstack/react-router` for internal navigation
+- Pages are lazy-loaded using `lazyRouteComponent()` in router configuration
+
 ### API Routes Structure
 Routes in `backend/src/api/` follow this pattern:
 ```typescript
@@ -166,10 +174,12 @@ export async function exampleRoutes(app: FastifyInstance) {
 ```
 
 ### Frontend
-- React 18 with React Router v6 for navigation
+- React 19 with TanStack Router for navigation (file-based routing in [frontend/src/router.tsx](../frontend/src/router.tsx))
 - TanStack Query for data fetching and caching
 - All API calls go through [frontend/src/lib/api.ts](../frontend/src/lib/api.ts) which provides typed methods
 - Auth state managed via React context in [frontend/src/lib/auth.tsx](../frontend/src/lib/auth.tsx)
+- Code-split with lazy-loaded pages for optimal bundle size
+- Monaco editor (YAML editing) lazy-loaded only on Settings page
 
 ### Environment Variables
 - Production env vars are in `.env` on the Pi (see `.env.example` for the template)

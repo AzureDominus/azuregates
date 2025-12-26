@@ -1,0 +1,576 @@
+/**
+ * UI Component Library
+ * Dark Industrial / Sci-Fi Design System
+ * 
+ * Uses Phosphor icons via Iconify for consistent iconography
+ */
+
+import { forwardRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes, type ReactNode } from 'react';
+import { Icon } from '@iconify/react';
+
+// =============================================================================
+// ICON COMPONENT - Wrapper for Iconify/Phosphor icons
+// =============================================================================
+
+interface IconProps {
+  /** Phosphor icon name (e.g., 'ph:door-open', 'ph:stop-fill') */
+  name: string;
+  className?: string;
+  size?: number | string;
+}
+
+export function PhIcon({ name, className = '', size = 24 }: IconProps) {
+  return <Icon icon={name} className={className} width={size} height={size} />;
+}
+
+// =============================================================================
+// STATUS LIGHT - Animated status indicator
+// =============================================================================
+
+type StatusVariant = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+
+interface StatusLightProps {
+  variant?: StatusVariant;
+  pulse?: boolean;
+  size?: 'sm' | 'md' | 'lg';
+  className?: string;
+}
+
+const statusColors: Record<StatusVariant, string> = {
+  success: '#00ff9d',
+  warning: '#ffaa00',
+  danger: '#ff2a2a',
+  info: '#00d2ff',
+  neutral: '#666666',
+};
+
+const statusGlows: Record<StatusVariant, string> = {
+  success: '0 0 12px #00ff9d',
+  warning: '0 0 12px #ffaa00',
+  danger: '0 0 12px #ff2a2a',
+  info: '0 0 12px #00d2ff',
+  neutral: '0 0 6px #666',
+};
+
+const statusSizes: Record<'sm' | 'md' | 'lg', number> = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+};
+
+const statusInnerSizes: Record<'sm' | 'md' | 'lg', number> = {
+  sm: 4,
+  md: 6,
+  lg: 8,
+};
+
+export function StatusLight({ variant = 'success', pulse = false, size = 'md', className = '' }: StatusLightProps) {
+  return (
+    <span
+      className={`inline-flex items-center justify-center rounded-full ${pulse ? 'animate-pulse' : ''} ${className}`}
+      style={{
+        width: statusSizes[size],
+        height: statusSizes[size],
+        backgroundColor: statusColors[variant],
+        boxShadow: statusGlows[variant],
+      }}
+    >
+      <span 
+        className="rounded-full" 
+        style={{
+          width: statusInnerSizes[size],
+          height: statusInnerSizes[size],
+          backgroundColor: 'rgba(255, 255, 255, 0.7)',
+        }}
+      />
+    </span>
+  );
+}
+
+// =============================================================================
+// BUTTON - Primary interactive element
+// =============================================================================
+
+type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'success' | 'ghost';
+type ButtonSize = 'sm' | 'md' | 'lg';
+
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  icon?: string;
+  iconPosition?: 'left' | 'right';
+  loading?: boolean;
+  children?: ReactNode;
+}
+
+const buttonVariants: Record<ButtonVariant, { base: string; hover: string }> = {
+  primary: {
+    base: 'bg-[#ffaa00]/10 text-[#ffaa00] border-[#ffaa00]/30',
+    hover: 'hover:bg-[#ffaa00]/30 hover:border-[#ffaa00]/70 hover:shadow-[0_0_25px_rgba(255,170,0,0.3)]',
+  },
+  secondary: {
+    base: 'bg-[#00d2ff]/10 text-[#00d2ff] border-[#00d2ff]/30',
+    hover: 'hover:bg-[#00d2ff]/30 hover:border-[#00d2ff]/70 hover:shadow-[0_0_25px_rgba(0,210,255,0.3)]',
+  },
+  danger: {
+    base: 'bg-[#ff2a2a]/10 text-[#ff2a2a] border-[#ff2a2a]/30',
+    hover: 'hover:bg-[#ff2a2a]/30 hover:border-[#ff2a2a]/70 hover:shadow-[0_0_25px_rgba(255,42,42,0.3)]',
+  },
+  success: {
+    base: 'bg-[#00ff9d]/10 text-[#00ff9d] border-[#00ff9d]/30',
+    hover: 'hover:bg-[#00ff9d]/30 hover:border-[#00ff9d]/70 hover:shadow-[0_0_25px_rgba(0,255,157,0.3)]',
+  },
+  ghost: {
+    base: 'bg-white/5 text-gray-300 border-white/10',
+    hover: 'hover:bg-white/15 hover:text-white hover:border-white/30',
+  },
+};
+
+const buttonSizes: Record<ButtonSize, string> = {
+  sm: 'px-3 py-1.5 text-xs gap-1.5',
+  md: 'px-4 py-2.5 text-sm gap-2',
+  lg: 'px-6 py-3 text-base gap-2.5',
+};
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ variant = 'primary', size = 'md', icon, iconPosition = 'left', loading, children, className = '', disabled, ...props }, ref) => {
+    const isDisabled = disabled || loading;
+    const variantStyles = buttonVariants[variant];
+    
+    return (
+      <button
+        ref={ref}
+        disabled={isDisabled}
+        className={`
+          inline-flex items-center justify-center
+          font-mono tracking-wide
+          border rounded-xl
+          transition-all duration-200
+          cursor-pointer
+          active:scale-[0.98]
+          focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050508]
+          disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100
+          ${variantStyles.base}
+          ${variantStyles.hover}
+          ${buttonSizes[size]}
+          ${className}
+        `}
+        {...props}
+      >
+        {loading && <Icon icon="ph:spinner" className="animate-spin" width={16} height={16} />}
+        {!loading && icon && iconPosition === 'left' && <Icon icon={icon} width={16} height={16} />}
+        {children}
+        {!loading && icon && iconPosition === 'right' && <Icon icon={icon} width={16} height={16} />}
+      </button>
+    );
+  }
+);
+Button.displayName = 'Button';
+
+// =============================================================================
+// ICON BUTTON - Square button with just an icon
+// =============================================================================
+
+interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  icon: string;
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  label: string; // Required for accessibility
+  loading?: boolean;
+}
+
+const iconButtonSizes: Record<ButtonSize, string> = {
+  sm: 'w-7 h-7',
+  md: 'w-9 h-9',
+  lg: 'w-11 h-11',
+};
+
+const iconSizes: Record<ButtonSize, number> = {
+  sm: 14,
+  md: 16,
+  lg: 20,
+};
+
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
+  ({ icon, variant = 'ghost', size = 'md', label, loading, className = '', disabled, ...props }, ref) => {
+    const isDisabled = disabled || loading;
+    const variantStyles = buttonVariants[variant];
+    
+    return (
+      <button
+        ref={ref}
+        disabled={isDisabled}
+        aria-label={label}
+        data-tooltip={label}
+        className={`
+          inline-flex items-center justify-center
+          border rounded-lg
+          transition-all duration-200
+          cursor-pointer
+          active:scale-[0.95]
+          focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050508]
+          disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100
+          ${variantStyles.base}
+          ${variantStyles.hover}
+          ${iconButtonSizes[size]}
+          ${className}
+        `}
+        {...props}
+      >
+        {loading ? (
+          <Icon icon="ph:spinner" className="animate-spin" width={iconSizes[size]} height={iconSizes[size]} />
+        ) : (
+          <Icon icon={icon} width={iconSizes[size]} height={iconSizes[size]} />
+        )}
+      </button>
+    );
+  }
+);
+IconButton.displayName = 'IconButton';
+
+// =============================================================================
+// SELECT - Custom styled dropdown
+// =============================================================================
+
+interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+  label?: string;
+  error?: string;
+}
+
+export const Select = forwardRef<HTMLSelectElement, SelectProps>(
+  ({ label, error, className = '', children, ...props }, ref) => {
+    return (
+      <div className="w-full">
+        {label && (
+          <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase tracking-wider">
+            {label}
+          </label>
+        )}
+        <div className="relative">
+          <select
+            ref={ref}
+            className={`
+              w-full appearance-none
+              bg-surfaceHighlight border border-white/10 
+              rounded-lg px-3 py-2.5 pr-10
+              text-white font-sans
+              cursor-pointer
+              transition-all duration-200
+              hover:border-white/20
+              focus:border-secondary/50 focus:outline-none focus:ring-2 focus:ring-secondary/20
+              disabled:opacity-50 disabled:cursor-not-allowed
+              ${error ? 'border-danger/50 focus:border-danger/50 focus:ring-danger/20' : ''}
+              ${className}
+            `}
+            {...props}
+          >
+            {children}
+          </select>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+            <Icon icon="ph:caret-down" width={16} height={16} />
+          </div>
+        </div>
+        {error && (
+          <p className="mt-1 text-xs font-mono text-danger">{error}</p>
+        )}
+      </div>
+    );
+  }
+);
+Select.displayName = 'Select';
+
+// =============================================================================
+// INPUT - Text input field
+// =============================================================================
+
+interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+  label?: string;
+  error?: string;
+  icon?: string;
+}
+
+export const Input = forwardRef<HTMLInputElement, InputProps>(
+  ({ label, error, icon, className = '', type = 'text', ...props }, ref) => {
+    return (
+      <div className="w-full">
+        {label && (
+          <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase tracking-wider">
+            {label}
+          </label>
+        )}
+        <div className="relative">
+          {icon && (
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+              <Icon icon={icon} width={16} height={16} />
+            </div>
+          )}
+          <input
+            ref={ref}
+            type={type}
+            className={`
+              w-full
+              bg-surfaceHighlight border border-white/10 
+              rounded-lg px-3 py-2.5
+              text-white placeholder-gray-600 font-sans
+              transition-all duration-200
+              hover:border-white/20
+              focus:border-secondary/50 focus:outline-none focus:ring-2 focus:ring-secondary/20
+              disabled:opacity-50 disabled:cursor-not-allowed
+              ${icon ? 'pl-10' : ''}
+              ${error ? 'border-danger/50 focus:border-danger/50 focus:ring-danger/20' : ''}
+              ${className}
+            `}
+            {...props}
+          />
+        </div>
+        {error && (
+          <p className="mt-1 text-xs font-mono text-danger">{error}</p>
+        )}
+      </div>
+    );
+  }
+);
+Input.displayName = 'Input';
+
+// =============================================================================
+// CHECKBOX - Custom styled checkbox
+// =============================================================================
+
+interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
+  label?: ReactNode;
+}
+
+export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
+  ({ label, className = '', ...props }, ref) => {
+    return (
+      <label className={`inline-flex items-center gap-2.5 cursor-pointer group ${className}`}>
+        <div className="relative">
+          <input
+            ref={ref}
+            type="checkbox"
+            className="peer sr-only"
+            {...props}
+          />
+          <div className={`
+            w-5 h-5 rounded
+            bg-surfaceHighlight border border-white/20
+            transition-all duration-200
+            group-hover:border-white/30
+            peer-focus-visible:ring-2 peer-focus-visible:ring-secondary/50 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background
+            peer-checked:bg-secondary/20 peer-checked:border-secondary/50
+            peer-disabled:opacity-50 peer-disabled:cursor-not-allowed
+          `} />
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity text-secondary">
+            <Icon icon="ph:check-bold" width={14} height={14} />
+          </div>
+        </div>
+        {label && (
+          <span className="text-sm text-gray-300 group-hover:text-white transition-colors select-none">
+            {label}
+          </span>
+        )}
+      </label>
+    );
+  }
+);
+Checkbox.displayName = 'Checkbox';
+
+// =============================================================================
+// TOGGLE BUTTON - For action selection (open, close, stop, toggle)
+// =============================================================================
+
+interface ToggleButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  active?: boolean;
+  children: ReactNode;
+}
+
+export const ToggleButton = forwardRef<HTMLButtonElement, ToggleButtonProps>(
+  ({ active = false, children, className = '', ...props }, ref) => {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        className={`
+          px-3 py-1.5 rounded-lg text-sm font-mono uppercase tracking-wider
+          transition-all duration-200
+          cursor-pointer
+          focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/50
+          ${active
+            ? 'bg-secondary/20 text-secondary border border-secondary/50 shadow-[0_0_10px_rgba(0,210,255,0.1)]'
+            : 'bg-surfaceHighlight text-gray-400 border border-white/10 hover:border-white/20 hover:text-gray-300'
+          }
+          ${className}
+        `}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  }
+);
+ToggleButton.displayName = 'ToggleButton';
+
+// =============================================================================
+// BADGE - Status/Label badges
+// =============================================================================
+
+type BadgeVariant = 'default' | 'primary' | 'secondary' | 'success' | 'danger' | 'warning';
+
+interface BadgeProps {
+  variant?: BadgeVariant;
+  children: ReactNode;
+  className?: string;
+}
+
+const badgeVariants: Record<BadgeVariant, string> = {
+  default: 'bg-surfaceHighlight text-gray-300 border-white/10',
+  primary: 'bg-primary/20 text-primary border-primary/30',
+  secondary: 'bg-secondary/20 text-secondary border-secondary/30',
+  success: 'bg-success/20 text-success border-success/30',
+  danger: 'bg-danger/20 text-danger border-danger/30',
+  warning: 'bg-yellow-900/30 text-yellow-500 border-yellow-700/50',
+};
+
+export function Badge({ variant = 'default', children, className = '' }: BadgeProps) {
+  return (
+    <span
+      className={`
+        inline-flex items-center
+        px-2 py-1 
+        text-xs font-mono uppercase tracking-wider
+        border rounded-lg
+        ${badgeVariants[variant]}
+        ${className}
+      `}
+    >
+      {children}
+    </span>
+  );
+}
+
+// =============================================================================
+// MODAL BACKDROP - For modal dialogs
+// =============================================================================
+
+interface ModalBackdropProps {
+  children: ReactNode;
+  onClose?: () => void;
+}
+
+export function ModalBackdrop({ children, onClose }: ModalBackdropProps) {
+  return (
+    <div 
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && onClose) {
+          onClose();
+        }
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// =============================================================================
+// MODAL PANEL - The actual modal content container
+// =============================================================================
+
+interface ModalPanelProps {
+  children: ReactNode;
+  className?: string;
+}
+
+export function ModalPanel({ children, className = '' }: ModalPanelProps) {
+  return (
+    <div 
+      className={`
+        glass-panel rounded-t-2xl sm:rounded-2xl 
+        p-6 border-white/10 
+        w-full sm:max-w-md 
+        max-h-[85vh] sm:max-h-[90vh] overflow-y-auto 
+        shadow-[0_0_50px_rgba(0,0,0,0.5)]
+        animate-in fade-in slide-in-from-bottom-4 sm:slide-in-from-bottom-2
+        duration-300
+        ${className}
+      `}
+    >
+      {children}
+    </div>
+  );
+}
+
+// =============================================================================
+// ACTION BUTTON - For gate control actions (open, close, stop, toggle)
+// =============================================================================
+
+type ActionType = 'open' | 'close' | 'stop' | 'toggle';
+
+interface ActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  action: ActionType;
+  loading?: boolean;
+  fullWidth?: boolean;
+}
+
+const actionConfig: Record<ActionType, { icon: string; label: string; colors: string }> = {
+  open: {
+    icon: 'ph:door-open-fill',
+    label: 'OPEN',
+    colors: 'bg-surfaceHighlight border-white/5 hover:bg-surfaceHighlight/80 hover:border-success/50 hover:text-success hover:shadow-[0_0_15px_rgba(0,255,157,0.1)]',
+  },
+  close: {
+    icon: 'ph:door-fill',
+    label: 'CLOSE',
+    colors: 'bg-surfaceHighlight border-white/5 hover:bg-surfaceHighlight/80 hover:border-primary/50 hover:text-primary hover:shadow-[0_0_15px_rgba(255,170,0,0.1)]',
+  },
+  stop: {
+    icon: 'ph:stop-fill',
+    label: 'STOP',
+    colors: 'bg-danger/10 border-danger/30 text-danger hover:bg-danger/20 hover:border-danger/60 hover:shadow-[0_0_20px_rgba(255,42,42,0.2)]',
+  },
+  toggle: {
+    icon: 'ph:power-fill',
+    label: 'TOGGLE',
+    colors: 'bg-surfaceHighlight border-white/5 hover:bg-surfaceHighlight/80 hover:border-secondary/50 hover:text-secondary hover:shadow-[0_0_15px_rgba(0,210,255,0.1)]',
+  },
+};
+
+export const ActionButton = forwardRef<HTMLButtonElement, ActionButtonProps>(
+  ({ action, loading, fullWidth, className = '', disabled, ...props }, ref) => {
+    const config = actionConfig[action];
+    
+    return (
+      <button
+        ref={ref}
+        disabled={disabled || loading}
+        className={`
+          relative overflow-hidden group/btn
+          flex flex-col items-center justify-center gap-2
+          p-4 rounded-lg border
+          transition-all duration-200
+          cursor-pointer
+          active:scale-95
+          focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/50
+          disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100
+          ${config.colors}
+          ${fullWidth ? 'col-span-2' : ''}
+          ${className}
+        `}
+        {...props}
+      >
+        {loading ? (
+          <Icon icon="ph:spinner" className="w-6 h-6 animate-spin" />
+        ) : (
+          <Icon icon={config.icon} className="w-6 h-6 transition-transform group-hover/btn:scale-110 duration-300" />
+        )}
+        <span className="text-xs font-mono uppercase tracking-widest font-bold">
+          {config.label}
+        </span>
+        
+        {/* Button internal glow effect */}
+        <div className="absolute inset-0 bg-gradient-to-t from-white/5 to-transparent opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none" />
+      </button>
+    );
+  }
+);
+ActionButton.displayName = 'ActionButton';

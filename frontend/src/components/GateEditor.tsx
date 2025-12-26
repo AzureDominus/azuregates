@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, Save, AlertTriangle } from 'lucide-react';
+import { Icon } from '@iconify/react';
 import type { ConfigGate } from '../lib/api';
+import { Button, IconButton, ToggleButton, Checkbox, ModalBackdrop, ModalPanel } from './ui';
 
 // GPIO config type for type safety
 interface GpioConfig {
@@ -101,74 +102,64 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
   const isGpio = editedGate.driver === 'gpio';
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-xl border border-gray-700 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <ModalBackdrop onClose={onClose}>
+      <ModalPanel className="max-w-lg">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold">Edit Gate: {gate.name}</h2>
-          <button
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-display font-semibold text-white">Edit Gate: <span className="text-primary">{gate.name}</span></h2>
+          <IconButton
             onClick={onClose}
-            className="p-1 hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+            icon="ph:x-bold"
+            label="Close"
+            className="text-gray-400 hover:text-white"
+          />
         </div>
 
         {/* Body */}
-        <div className="p-4 space-y-4">
+        <div className="space-y-5">
           {/* Basic Info */}
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wide">Basic Information</h3>
+            <h3 className="text-xs font-mono text-gray-500 uppercase tracking-wider">Basic Information</h3>
             
             <div>
-              <label className="block text-sm text-gray-300 mb-1">Name</label>
+              <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Name</label>
               <input
                 type="text"
                 value={editedGate.name}
                 onChange={(e) => setEditedGate({ ...editedGate, name: e.target.value })}
-                className={`w-full px-3 py-2 bg-gray-900 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.name ? 'border-red-500' : 'border-gray-700'
+                className={`w-full px-3 py-2 bg-surfaceHighlight border rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-1 ${
+                  errors.name ? 'border-danger/50 focus:ring-danger/50' : 'border-white/10 focus:border-secondary/50 focus:ring-secondary/50'
                 }`}
               />
-              {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name}</p>}
+              {errors.name && <p className="text-xs text-danger mt-1">{errors.name}</p>}
             </div>
 
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={editedGate.enabled !== false}
-                  onChange={(e) => setEditedGate({ ...editedGate, enabled: e.target.checked })}
-                  className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-300">Enabled</span>
-              </label>
-            </div>
+            <Checkbox
+              checked={editedGate.enabled !== false}
+              onChange={(e) => setEditedGate({ ...editedGate, enabled: e.target.checked })}
+              label="Enabled"
+            />
 
             <div>
-              <label className="block text-sm text-gray-300 mb-1">Driver</label>
-              <div className="px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-gray-400 text-sm">
-                {editedGate.driver} <span className="text-gray-500">(read-only)</span>
+              <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Driver</label>
+              <div className="px-3 py-2 bg-surfaceHighlight/50 border border-white/5 rounded-lg text-gray-500 text-sm font-mono">
+                {editedGate.driver} <span className="text-gray-600">(read-only)</span>
               </div>
             </div>
           </div>
 
           {/* Capabilities */}
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wide">Capabilities</h3>
+            <h3 className="text-xs font-mono text-gray-500 uppercase tracking-wider">Capabilities</h3>
             <div className="flex flex-wrap gap-2">
               {['open', 'close', 'stop', 'toggle'].map((cap) => (
-                <button
+                <ToggleButton
                   key={cap}
+                  active={editedGate.capabilities?.includes(cap as any) ?? false}
                   onClick={() => toggleCapability(cap)}
-                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                    editedGate.capabilities?.includes(cap as any)
-                      ? 'bg-blue-600 border-blue-500 text-white'
-                      : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-600'
-                  }`}
                 >
                   {cap}
-                </button>
+                </ToggleButton>
               ))}
             </div>
           </div>
@@ -176,18 +167,18 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
           {/* GPIO Configuration */}
           {isGpio && (
             <div className="space-y-3">
-              <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wide">GPIO Configuration</h3>
+              <h3 className="text-xs font-mono text-gray-500 uppercase tracking-wider">GPIO Configuration</h3>
               
               {errors.pins && (
-                <div className="flex items-center gap-2 p-2 bg-red-900/30 border border-red-700 rounded-lg">
-                  <AlertTriangle className="w-4 h-4 text-red-400" />
-                  <p className="text-sm text-red-400">{errors.pins}</p>
+                <div className="flex items-center gap-2 p-2.5 bg-danger/10 border border-danger/30 rounded-lg">
+                  <Icon icon="ph:warning-fill" className="w-4 h-4 text-danger flex-shrink-0" />
+                  <p className="text-sm text-danger">{errors.pins}</p>
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm text-gray-300 mb-1">Open Pin</label>
+                  <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Open Pin</label>
                   <input
                     type="number"
                     min="0"
@@ -195,14 +186,14 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                     value={getConfig().openPin ?? ''}
                     onChange={(e) => updateConfig('openPin', e.target.value ? parseInt(e.target.value) : undefined)}
                     placeholder="GPIO #"
-                    className={`w-full px-3 py-2 bg-gray-900 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.openPin ? 'border-red-500' : 'border-gray-700'
+                    className={`w-full px-3 py-2 bg-surfaceHighlight border rounded-lg text-white placeholder-gray-600 font-mono focus:outline-none focus:ring-1 ${
+                      errors.openPin ? 'border-danger/50 focus:ring-danger/50' : 'border-white/10 focus:border-secondary/50 focus:ring-secondary/50'
                     }`}
                   />
-                  {errors.openPin && <p className="text-xs text-red-400 mt-1">{errors.openPin}</p>}
+                  {errors.openPin && <p className="text-xs text-danger mt-1">{errors.openPin}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-300 mb-1">Close Pin</label>
+                  <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Close Pin</label>
                   <input
                     type="number"
                     min="0"
@@ -210,13 +201,13 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                     value={getConfig().closePin ?? ''}
                     onChange={(e) => updateConfig('closePin', e.target.value ? parseInt(e.target.value) : undefined)}
                     placeholder="GPIO #"
-                    className={`w-full px-3 py-2 bg-gray-900 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.closePin ? 'border-red-500' : 'border-gray-700'
+                    className={`w-full px-3 py-2 bg-surfaceHighlight border rounded-lg text-white placeholder-gray-600 font-mono focus:outline-none focus:ring-1 ${
+                      errors.closePin ? 'border-danger/50 focus:ring-danger/50' : 'border-white/10 focus:border-secondary/50 focus:ring-secondary/50'
                     }`}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-300 mb-1">Stop Pin</label>
+                  <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Stop Pin</label>
                   <input
                     type="number"
                     min="0"
@@ -224,11 +215,11 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                     value={getConfig().stopPin ?? ''}
                     onChange={(e) => updateConfig('stopPin', e.target.value ? parseInt(e.target.value) : undefined)}
                     placeholder="GPIO #"
-                    className={`w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                    className="w-full px-3 py-2 bg-surfaceHighlight border border-white/10 rounded-lg text-white placeholder-gray-600 font-mono focus:outline-none focus:ring-1 focus:border-secondary/50 focus:ring-secondary/50"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-300 mb-1">Toggle Pin</label>
+                  <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Toggle Pin</label>
                   <input
                     type="number"
                     min="0"
@@ -236,28 +227,28 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                     value={getConfig().togglePin ?? ''}
                     onChange={(e) => updateConfig('togglePin', e.target.value ? parseInt(e.target.value) : undefined)}
                     placeholder="GPIO #"
-                    className={`w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                    className="w-full px-3 py-2 bg-surfaceHighlight border border-white/10 rounded-lg text-white placeholder-gray-600 font-mono focus:outline-none focus:ring-1 focus:border-secondary/50 focus:ring-secondary/50"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm text-gray-300 mb-1">Pulse Duration (ms)</label>
+                  <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Pulse Duration (ms)</label>
                   <input
                     type="number"
                     min="50"
                     max="5000"
                     value={getConfig().pulseDurationMs ?? 500}
                     onChange={(e) => updateConfig('pulseDurationMs', parseInt(e.target.value) || 500)}
-                    className={`w-full px-3 py-2 bg-gray-900 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.pulseDurationMs ? 'border-red-500' : 'border-gray-700'
+                    className={`w-full px-3 py-2 bg-surfaceHighlight border rounded-lg text-white font-mono focus:outline-none focus:ring-1 ${
+                      errors.pulseDurationMs ? 'border-danger/50 focus:ring-danger/50' : 'border-white/10 focus:border-secondary/50 focus:ring-secondary/50'
                     }`}
                   />
-                  {errors.pulseDurationMs && <p className="text-xs text-red-400 mt-1">{errors.pulseDurationMs}</p>}
+                  {errors.pulseDurationMs && <p className="text-xs text-danger mt-1">{errors.pulseDurationMs}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-300 mb-1">Hold Duration (ms)</label>
+                  <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Hold Duration (ms)</label>
                   <input
                     type="number"
                     min="1000"
@@ -265,43 +256,41 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
                     value={getConfig().holdDurationMs ?? ''}
                     onChange={(e) => updateConfig('holdDurationMs', e.target.value ? parseInt(e.target.value) : undefined)}
                     placeholder="Optional"
-                    className={`w-full px-3 py-2 bg-gray-900 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.holdDurationMs ? 'border-red-500' : 'border-gray-700'
+                    className={`w-full px-3 py-2 bg-surfaceHighlight border rounded-lg text-white placeholder-gray-600 font-mono focus:outline-none focus:ring-1 ${
+                      errors.holdDurationMs ? 'border-danger/50 focus:ring-danger/50' : 'border-white/10 focus:border-secondary/50 focus:ring-secondary/50'
                     }`}
                   />
-                  {errors.holdDurationMs && <p className="text-xs text-red-400 mt-1">{errors.holdDurationMs}</p>}
+                  {errors.holdDurationMs && <p className="text-xs text-danger mt-1">{errors.holdDurationMs}</p>}
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={getConfig().activeHigh === true}
-                    onChange={(e) => updateConfig('activeHigh', e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-300">Active High</span>
-                </label>
-                <span className="text-xs text-gray-500">
-                  (unchecked = LOW activates relay)
-                </span>
-              </div>
+              <Checkbox
+                checked={getConfig().activeHigh === true}
+                onChange={(e) => updateConfig('activeHigh', e.target.checked)}
+                label={
+                  <>
+                    Active High
+                    <span className="text-xs font-mono text-gray-600 ml-2">
+                      (unchecked = LOW activates relay)
+                    </span>
+                  </>
+                }
+              />
             </div>
           )}
 
           {/* Webhook Configuration */}
           {editedGate.driver === 'webhook' && (
             <div className="space-y-3">
-              <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wide">Webhook Configuration</h3>
+              <h3 className="text-xs font-mono text-gray-500 uppercase tracking-wider">Webhook Configuration</h3>
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Webhook URL</label>
+                <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Webhook URL</label>
                 <input
                   type="url"
                   value={getConfig().url ?? ''}
                   onChange={(e) => updateConfig('url', e.target.value)}
                   placeholder="https://example.com/webhook"
-                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-surfaceHighlight border border-white/10 rounded-lg text-white placeholder-gray-600 font-mono focus:outline-none focus:ring-1 focus:border-secondary/50 focus:ring-secondary/50"
                 />
               </div>
             </div>
@@ -309,22 +298,15 @@ export function GateEditor({ gate, onSave, onClose }: GateEditorProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-700">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-          >
+        <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-white/10">
+          <Button onClick={onClose} variant="ghost">
             Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 hover:bg-green-500 rounded-lg transition-colors"
-          >
-            <Save className="w-4 h-4" />
+          </Button>
+          <Button onClick={handleSave} variant="success" icon="ph:floppy-disk-fill">
             Save Changes
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </ModalPanel>
+    </ModalBackdrop>
   );
 }
