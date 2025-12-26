@@ -6,16 +6,16 @@ After=docker.service network-online.target
 Wants=network-online.target
 
 [Service]
-Type=oneshot
-RemainAfterExit=yes
+Type=simple
 WorkingDirectory=/opt/gates
 
-# Start the stack with remote-access profile by default
-ExecStart=/usr/bin/docker compose --profile remote-access up -d --remove-orphans
+# Start the stack with remote-access profile, follow logs to keep service running
+ExecStartPre=/usr/bin/docker compose --profile remote-access up -d --remove-orphans --wait
+ExecStart=/usr/bin/docker compose --profile remote-access logs -f
 ExecStop=/usr/bin/docker compose --profile remote-access down
 ExecReload=/usr/bin/docker compose --profile remote-access up -d --remove-orphans
 
-# Restart policy for the oneshot service
+# Restart policy
 Restart=on-failure
 RestartSec=30
 
@@ -24,8 +24,8 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=gates
 
-# Give containers time to start
-TimeoutStartSec=300
+# Give containers time to start and stop
+TimeoutStartSec=600
 TimeoutStopSec=120
 
 [Install]

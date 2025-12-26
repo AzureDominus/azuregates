@@ -273,6 +273,27 @@ def main():
     
     server = HTTPServer((args.host, args.port), GPIOHandler)
     
+    # Notify systemd that we're ready (if running under systemd)
+    try:
+        import sdnotify
+        notify = sdnotify.SystemdNotifier()
+        notify.notify("READY=1")
+        notify.notify(f"STATUS=Listening on {args.host}:{args.port}")
+        print("Notified systemd: READY")
+        
+        # Set up watchdog timer (if configured in systemd)
+        def watchdog_ping():
+            while True:
+                time.sleep(30)
+                notify.notify("WATCHDOG=1")
+        
+        watchdog_thread = threading.Thread(target=watchdog_ping, daemon=True)
+        watchdog_thread.start()
+    except ImportError:
+        print("sdnotify not installed, running without systemd integration")
+    except Exception as e:
+        print(f"Could not notify systemd: {e}")
+    
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -142,6 +142,9 @@ services:
       - AUTHENTIK_POSTGRESQL__USER=${POSTGRES_USER:-gates}
       - AUTHENTIK_POSTGRESQL__NAME=${AUTHENTIK_DB:-authentik}
       - AUTHENTIK_POSTGRESQL__PASSWORD=${POSTGRES_PASSWORD}
+      # Bootstrap admin user settings
+      - AUTHENTIK_BOOTSTRAP_EMAIL=${AUTHENTIK_ADMIN_EMAIL:-chadd.hodge0@gmail.com}
+      - AUTHENTIK_BOOTSTRAP_TOKEN=${AUTHENTIK_BOOTSTRAP_TOKEN:-}
     volumes:
       - authentik_media:/media
       - authentik_templates:/templates
