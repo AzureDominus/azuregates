@@ -555,6 +555,15 @@ interface ModalBackdropProps {
 }
 
 export function ModalBackdrop({ children, onClose }: ModalBackdropProps) {
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
   return (
     <div 
       className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50"
@@ -570,7 +579,7 @@ export function ModalBackdrop({ children, onClose }: ModalBackdropProps) {
 }
 
 // =============================================================================
-// MODAL PANEL - The actual modal content container
+// MODAL PANEL - The actual modal content container (legacy - use Modal instead)
 // =============================================================================
 
 interface ModalPanelProps {
@@ -594,6 +603,109 @@ export function ModalPanel({ children, className = '' }: ModalPanelProps) {
     >
       {children}
     </div>
+  );
+}
+
+// =============================================================================
+// MODAL - Unified modal component with bottom sheet on mobile
+// =============================================================================
+
+interface ModalProps {
+  children: ReactNode;
+  onClose: () => void;
+  title?: string;
+  className?: string;
+}
+
+export function Modal({ children, onClose, title, className = '' }: ModalProps) {
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100]">
+      {/* Backdrop */}
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      
+      {/* Desktop Modal */}
+      <div className="hidden sm:flex absolute inset-0 items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          className={`
+            glass-panel rounded-2xl p-6 border-white/10 
+            w-full max-w-md max-h-[90vh] overflow-y-auto 
+            shadow-[0_0_50px_rgba(0,0,0,0.5)]
+            ${className}
+          `}
+        >
+          {title && (
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-display font-bold text-white">{title}</h2>
+              <IconButton
+                onClick={onClose}
+                icon="ph:x-bold"
+                label="Close"
+                className="text-gray-400 hover:text-white"
+              />
+            </div>
+          )}
+          {children}
+        </motion.div>
+      </div>
+      
+      {/* Mobile Bottom Sheet */}
+      <motion.div 
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        drag="y"
+        dragConstraints={{ top: 0 }}
+        dragElastic={{ top: 0, bottom: 0.5 }}
+        onDragEnd={(_, info) => {
+          if (info.offset.y > 100 || info.velocity.y > 500) {
+            onClose();
+          }
+        }}
+        className={`
+          sm:hidden absolute bottom-0 left-0 right-0
+          glass-panel rounded-t-2xl border-t border-white/10 
+          max-h-[90vh] overflow-y-auto
+          shadow-[0_-10px_50px_rgba(0,0,0,0.5)]
+          ${className}
+        `}
+      >
+        {/* Handle */}
+        <div className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing sticky top-0 bg-[#1a1a24]/95 backdrop-blur-sm z-10">
+          <div className="w-10 h-1 rounded-full bg-white/20" />
+        </div>
+        
+        <div className="px-6 pb-6">
+          {title && (
+            <h2 className="text-lg font-display font-bold text-white mb-4">{title}</h2>
+          )}
+          {children}
+        </div>
+        
+        {/* Safe area padding */}
+        <div className="h-safe-area-inset-bottom" />
+      </motion.div>
+    </div>,
+    document.body
   );
 }
 

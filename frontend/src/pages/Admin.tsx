@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@iconify/react';
 import { api, type AdminUser } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { Button, IconButton, Select, ToggleButton, Badge, ModalBackdrop, ModalPanel } from '../components/ui';
+import { Button, IconButton, Select, ToggleButton, Badge, Modal } from '../components/ui';
 
 export function Admin() {
   const { user } = useAuth();
@@ -88,37 +88,39 @@ export function Admin() {
           </div>
           <div className="divide-y divide-white/5">
             {pendingUsers.map((pu) => (
-              <div key={pu.id} className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors">
-                <div>
-                  <div className="font-display font-medium text-white">{pu.displayName || pu.email || 'Unknown'}</div>
-                  <div className="text-sm font-mono text-gray-500">
-                    {pu.email && <span>{pu.email} • </span>}
-                    Signed up {new Date(pu.createdAt).toLocaleDateString()}
+              <div key={pu.id} className="p-4 hover:bg-white/5 transition-colors">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-display font-medium text-white truncate">{pu.displayName || pu.email || 'Unknown'}</div>
+                    <div className="text-sm font-mono text-gray-500 truncate">
+                      {pu.email && <span className="hidden sm:inline">{pu.email} • </span>}
+                      Signed up {new Date(pu.createdAt).toLocaleDateString()}
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    onClick={() => activateUserMutation.mutate(pu.id)}
-                    disabled={activateUserMutation.isPending}
-                    variant="success"
-                    size="sm"
-                    icon="ph:check-circle-fill"
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      if (confirm('Delete this pending user? This cannot be undone.')) {
-                        deleteUserMutation.mutate(pu.id);
-                      }
-                    }}
-                    disabled={deleteUserMutation.isPending}
-                    variant="danger"
-                    size="sm"
-                    icon="ph:x-circle-fill"
-                  >
-                    Reject
-                  </Button>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button
+                      onClick={() => activateUserMutation.mutate(pu.id)}
+                      disabled={activateUserMutation.isPending}
+                      variant="success"
+                      size="sm"
+                      icon="ph:check-circle-fill"
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (confirm('Delete this pending user? This cannot be undone.')) {
+                          deleteUserMutation.mutate(pu.id);
+                        }
+                      }}
+                      disabled={deleteUserMutation.isPending}
+                      variant="danger"
+                      size="sm"
+                      icon="ph:x-circle-fill"
+                    >
+                      Reject
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -216,11 +218,6 @@ function UserRow({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {user._count.permissions > 0 && (
-          <span className="text-xs font-mono text-gray-600">
-            {user._count.permissions} Permission{user._count.permissions !== 1 ? 's' : ''}
-          </span>
-        )}
         {!user.isActivated && !user.isAdmin && (
           <Badge variant={user.activatedAt ? 'warning' : 'primary'}>
             {user.activatedAt ? 'Disabled' : 'Pending'}
@@ -453,70 +450,58 @@ function GrantPermissionModal({ userId, onClose }: { userId: string; onClose: ()
   };
 
   return (
-    <ModalBackdrop onClose={onClose}>
-      <ModalPanel>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-display font-semibold text-white text-xl">Grant Permission</h2>
-          <IconButton
-            onClick={onClose}
-            icon="ph:x-bold"
-            label="Close"
-            className="text-gray-500 hover:text-white"
-          />
-        </div>
+    <Modal onClose={onClose} title="Grant Permission">
+      <div className="space-y-4">
+        {/* Scope Type */}
+        <Select
+          label="Scope Type"
+          value={scopeType}
+          onChange={(e) => {
+            setScopeType(e.target.value as 'LOCATION' | 'AREA' | 'GATE');
+            setScopeId('');
+          }}
+        >
+          <option value="LOCATION">Location (all gates in location)</option>
+          <option value="AREA">Area (all gates in area)</option>
+          <option value="GATE">Gate (single gate)</option>
+        </Select>
 
-        <div className="space-y-4">
-          {/* Scope Type */}
-          <Select
-            label="Scope Type"
-            value={scopeType}
-            onChange={(e) => {
-              setScopeType(e.target.value as 'LOCATION' | 'AREA' | 'GATE');
-              setScopeId('');
-            }}
-          >
-            <option value="LOCATION">Location (all gates in location)</option>
-            <option value="AREA">Area (all gates in area)</option>
-            <option value="GATE">Gate (single gate)</option>
-          </Select>
+        {/* Scope Selection */}
+        <Select
+          label={scopeType === 'LOCATION' ? 'Location' : scopeType === 'AREA' ? 'Area' : 'Gate'}
+          value={scopeId}
+          onChange={(e) => setScopeId(e.target.value)}
+        >
+          <option value="">Select...</option>
+          {scopeOptions?.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </Select>
 
-          {/* Scope Selection */}
-          <Select
-            label={scopeType === 'LOCATION' ? 'Location' : scopeType === 'AREA' ? 'Area' : 'Gate'}
-            value={scopeId}
-            onChange={(e) => setScopeId(e.target.value)}
-          >
-            <option value="">Select...</option>
-            {scopeOptions?.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
+        {/* Actions */}
+        <div>
+          <label className="block text-xs font-mono text-gray-500 mb-2 uppercase tracking-wider">Allowed Actions</label>
+          <div className="flex flex-wrap gap-2">
+            {allActions.map((action) => (
+              <ToggleButton
+                key={action}
+                active={actions.includes(action)}
+                onClick={() => toggleAction(action)}
+              >
+                {action}
+              </ToggleButton>
             ))}
-          </Select>
-
-          {/* Actions */}
-          <div>
-            <label className="block text-xs font-mono text-gray-500 mb-2 uppercase tracking-wider">Allowed Actions</label>
-            <div className="flex flex-wrap gap-2">
-              {allActions.map((action) => (
-                <ToggleButton
-                  key={action}
-                  active={actions.includes(action)}
-                  onClick={() => toggleAction(action)}
-                >
-                  {action}
-                </ToggleButton>
-              ))}
-            </div>
           </div>
         </div>
 
         {grantMutation.error && (
-          <div className="mt-4 p-3 bg-danger/10 border border-danger/30 rounded-lg text-danger font-mono text-sm flex items-center gap-2">
+          <div className="p-3 bg-danger/10 border border-danger/30 rounded-lg text-danger font-mono text-sm flex items-center gap-2">
             <Icon icon="ph:warning-fill" className="w-4 h-4 flex-shrink-0" />
             {grantMutation.error instanceof Error ? grantMutation.error.message : 'Failed to grant permission'}
           </div>
         )}
 
-        <div className="flex gap-3 mt-6">
+        <div className="flex gap-3 pt-2">
           <Button
             onClick={onClose}
             variant="ghost"
@@ -534,7 +519,7 @@ function GrantPermissionModal({ userId, onClose }: { userId: string; onClose: ()
             Grant Permission
           </Button>
         </div>
-      </ModalPanel>
-    </ModalBackdrop>
+      </div>
+    </Modal>
   );
 }

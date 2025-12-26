@@ -139,17 +139,18 @@ export function AuditLogs() {
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between glass-panel rounded-xl px-4 py-3">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 glass-panel rounded-xl px-4 py-3">
               <div className="text-sm font-mono text-gray-500">
                 Page {page + 1} of {totalPages}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <Button
                   variant="ghost"
                   size="sm"
                   disabled={page === 0}
                   onClick={() => setPage(0)}
                   icon="ph:caret-double-left-bold"
+                  className="px-2 sm:px-3"
                 >
                   <span className="sr-only">First</span>
                 </Button>
@@ -159,23 +160,26 @@ export function AuditLogs() {
                   disabled={page === 0}
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
                   icon="ph:caret-left-bold"
+                  className="px-2 sm:px-3"
                 >
-                  Previous
+                  <span className="hidden sm:inline">Previous</span>
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   disabled={page >= totalPages - 1}
                   onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  className="px-2 sm:px-3"
                 >
-                  Next
-                  <Icon icon="ph:caret-right-bold" className="w-4 h-4 ml-1" />
+                  <span className="hidden sm:inline">Next</span>
+                  <Icon icon="ph:caret-right-bold" className="w-4 h-4 sm:ml-1" />
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   disabled={page >= totalPages - 1}
                   onClick={() => setPage(totalPages - 1)}
+                  className="px-2 sm:px-3"
                 >
                   <span className="sr-only">Last</span>
                   <Icon icon="ph:caret-double-right-bold" className="w-4 h-4" />

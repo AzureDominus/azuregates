@@ -249,8 +249,7 @@ export function Settings() {
       {/* Configuration Editor */}
       <section className="glass-panel rounded-xl p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <h2 className="text-xl font-display font-semibold text-white flex items-center gap-3">
-            <div className="w-px h-4 bg-white/10 mx-2" />
+          <h2 className="text-xl font-display font-semibold text-white">
             Configuration Editor
           </h2>
           <div className="flex flex-wrap items-center gap-2">
@@ -432,9 +431,9 @@ export function Settings() {
                 {/* Locations/Areas/Gates */}
                 {localConfig.locations.map((location, locationIdx) => (
                   <div key={location.id} className="bg-surfaceHighlight/50 rounded-xl border border-white/5 overflow-hidden">
-                    <div className="p-4 bg-surface/50 border-b border-white/5">
+                    <div className="p-4 bg-surface/50 border-b border-white/5 flex items-center justify-between">
                       <h3 className="font-display font-medium text-white">{location.name}</h3>
-                      <p className="text-xs font-mono text-gray-600">{location.id}</p>
+                      <span className="text-xs font-mono text-gray-600 bg-surfaceHighlight px-2 py-1 rounded">{location.id}</span>
                     </div>
                     <div className="p-4 space-y-6">
                       {location.areas?.map((area, areaIdx) => (
@@ -548,35 +547,45 @@ export function Settings() {
 
       {/* Config Schema Reference */}
       <section className="glass-panel rounded-xl p-6">
-        <h2 className="text-xl font-display font-semibold text-white mb-4 flex items-center gap-3">
-          <div className="w-px h-4 bg-white/10 mx-2" />
+        <h2 className="text-lg font-display font-semibold text-white mb-4">
           Configuration Reference
         </h2>
-        <div className="text-sm text-gray-400 space-y-6">
-          <div>
-            <h3 className="font-display font-medium text-gray-300 mb-2">Structure</h3>
-            <ul className="list-disc list-inside space-y-1.5 ml-2 font-mono text-xs">
-              <li><code className="bg-surfaceHighlight px-1.5 py-0.5 rounded text-secondary">version</code> - Config version (currently 1)</li>
-              <li><code className="bg-surfaceHighlight px-1.5 py-0.5 rounded text-secondary">settings</code> - Global settings (cooldown, log level, maintenance mode)</li>
-              <li><code className="bg-surfaceHighlight px-1.5 py-0.5 rounded text-secondary">locations</code> - Array of locations containing areas and gates</li>
-            </ul>
-          </div>
-          <div>
-            <h3 className="font-display font-medium text-gray-300 mb-2">Gate Drivers</h3>
-            <ul className="list-disc list-inside space-y-1.5 ml-2 font-mono text-xs">
-              <li><code className="bg-surfaceHighlight px-1.5 py-0.5 rounded text-secondary">gpio</code> - GPIO driver for Raspberry Pi control</li>
-              <li><code className="bg-surfaceHighlight px-1.5 py-0.5 rounded text-secondary">webhook</code> - HTTP webhook driver for remote control</li>
-            </ul>
-          </div>
-          <div>
-            <h3 className="font-display font-medium text-gray-300 mb-2">GPIO Pin Configuration</h3>
-            <ul className="list-disc list-inside space-y-1.5 ml-2 font-mono text-xs">
-              <li><code className="bg-surfaceHighlight px-1.5 py-0.5 rounded text-secondary">openPin</code>, <code className="bg-surfaceHighlight px-1.5 py-0.5 rounded text-secondary">closePin</code> - For gates with separate open/close relays</li>
-              <li><code className="bg-surfaceHighlight px-1.5 py-0.5 rounded text-secondary">togglePin</code> - For single-button gates or lights</li>
-              <li><code className="bg-surfaceHighlight px-1.5 py-0.5 rounded text-secondary">pulseDurationMs</code> - How long to pulse the relay (50-5000ms)</li>
-              <li><code className="bg-surfaceHighlight px-1.5 py-0.5 rounded text-secondary">holdDurationMs</code> - For gates that need to hold the button (1000-120000ms)</li>
-              <li><code className="bg-surfaceHighlight px-1.5 py-0.5 rounded text-secondary">activeHigh</code> - false = LOW activates relay (most common)</li>
-            </ul>
+        <div className="text-sm text-gray-400 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="p-4 bg-surfaceHighlight/30 rounded-lg border border-white/5">
+              <h3 className="font-display font-medium text-gray-300 mb-2 flex items-center gap-2">
+                <Icon icon="ph:tree-structure-fill" className="w-4 h-4 text-secondary" />
+                Structure
+              </h3>
+              <ul className="space-y-1.5 font-mono text-xs">
+                <li><code className="text-secondary">version</code> <span className="text-gray-500">- Config version (1)</span></li>
+                <li><code className="text-secondary">settings</code> <span className="text-gray-500">- Global settings</span></li>
+                <li><code className="text-secondary">locations</code> <span className="text-gray-500">- Areas and gates</span></li>
+              </ul>
+            </div>
+            <div className="p-4 bg-surfaceHighlight/30 rounded-lg border border-white/5">
+              <h3 className="font-display font-medium text-gray-300 mb-2 flex items-center gap-2">
+                <Icon icon="ph:plugs-fill" className="w-4 h-4 text-secondary" />
+                Drivers
+              </h3>
+              <ul className="space-y-1.5 font-mono text-xs">
+                <li><code className="text-secondary">gpio</code> <span className="text-gray-500">- Raspberry Pi GPIO</span></li>
+                <li><code className="text-secondary">webhook</code> <span className="text-gray-500">- HTTP webhook</span></li>
+              </ul>
+            </div>
+            <div className="p-4 bg-surfaceHighlight/30 rounded-lg border border-white/5">
+              <h3 className="font-display font-medium text-gray-300 mb-2 flex items-center gap-2">
+                <Icon icon="ph:cpu-fill" className="w-4 h-4 text-secondary" />
+                GPIO Pins
+              </h3>
+              <ul className="space-y-1.5 font-mono text-xs">
+                <li><code className="text-secondary">openPin</code>, <code className="text-secondary">closePin</code></li>
+                <li><code className="text-secondary">togglePin</code>, <code className="text-secondary">stopPin</code></li>
+                <li><code className="text-secondary">pulseDurationMs</code> <span className="text-gray-500">(50-5000)</span></li>
+                <li><code className="text-secondary">holdDurationMs</code> <span className="text-gray-500">(1k-120k)</span></li>
+                <li><code className="text-secondary">activeHigh</code> <span className="text-gray-500">(false = LOW)</span></li>
+              </ul>
+            </div>
           </div>
         </div>
       </section>

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@iconify/react';
 import { api, type CreateInviteRequest } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { Button, IconButton, Select, ToggleButton, Badge, ModalBackdrop, ModalPanel } from '../components/ui';
+import { Button, IconButton, Select, ToggleButton, Badge, Modal } from '../components/ui';
 
 export function GuestInvites() {
   const { isAuthenticated, isGuest } = useAuth();
@@ -256,121 +256,117 @@ function CreateInviteForm({ gates, areas, locations, onSubmit, onCancel, isSubmi
   };
 
   return (
-    <ModalBackdrop onClose={onCancel}>
-      <ModalPanel>
-        <h2 className="text-xl font-display font-bold text-white mb-6">Create Guest Invite</h2>
+    <Modal onClose={onCancel} title="Create Guest Invite">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Scope Type */}
+        <Select
+          label="Access Scope"
+          value={scopeType}
+          onChange={(e) => {
+            setScopeType(e.target.value as any);
+            setScopeId('');
+          }}
+        >
+          <option value="GATE">Single Gate</option>
+          <option value="AREA">Area (multiple gates)</option>
+          <option value="LOCATION">Entire Location</option>
+        </Select>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Scope Type */}
-          <Select
-            label="Access Scope"
-            value={scopeType}
-            onChange={(e) => {
-              setScopeType(e.target.value as any);
-              setScopeId('');
-            }}
-          >
-            <option value="GATE">Single Gate</option>
-            <option value="AREA">Area (multiple gates)</option>
-            <option value="LOCATION">Entire Location</option>
-          </Select>
+        {/* Scope ID */}
+        <Select
+          label={scopeType === 'GATE' ? 'Gate' : scopeType === 'AREA' ? 'Area' : 'Location'}
+          value={scopeId}
+          onChange={(e) => setScopeId(e.target.value)}
+          required
+        >
+          <option value="">Select...</option>
+          {scopeOptions.map((opt: any) => (
+            <option key={opt.id} value={opt.id}>
+              {opt.name}
+              {opt.areaName && ` (${opt.areaName})`}
+              {opt.locationName && ` - ${opt.locationName}`}
+            </option>
+          ))}
+        </Select>
 
-          {/* Scope ID */}
-          <Select
-            label={scopeType === 'GATE' ? 'Gate' : scopeType === 'AREA' ? 'Area' : 'Location'}
-            value={scopeId}
-            onChange={(e) => setScopeId(e.target.value)}
-            required
-          >
-            <option value="">Select...</option>
-            {scopeOptions.map((opt: any) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.name}
-                {opt.areaName && ` (${opt.areaName})`}
-                {opt.locationName && ` - ${opt.locationName}`}
-              </option>
+        {/* Actions */}
+        <div>
+          <label className="block text-xs font-mono text-gray-500 mb-2 uppercase tracking-wider">
+            Allowed Actions
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {['open', 'close', 'stop', 'toggle'].map((action) => (
+              <ToggleButton
+                key={action}
+                active={actions.includes(action)}
+                onClick={() => toggleAction(action)}
+              >
+                {action}
+              </ToggleButton>
             ))}
-          </Select>
-
-          {/* Actions */}
-          <div>
-            <label className="block text-xs font-mono text-gray-500 mb-2 uppercase tracking-wider">
-              Allowed Actions
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {['open', 'close', 'stop', 'toggle'].map((action) => (
-                <ToggleButton
-                  key={action}
-                  active={actions.includes(action)}
-                  onClick={() => toggleAction(action)}
-                >
-                  {action}
-                </ToggleButton>
-              ))}
-            </div>
           </div>
+        </div>
 
-          {/* Expiry */}
-          <Select
-            label="Expires In"
-            value={expiresInHours}
-            onChange={(e) => setExpiresInHours(parseInt(e.target.value))}
+        {/* Expiry */}
+        <Select
+          label="Expires In"
+          value={expiresInHours}
+          onChange={(e) => setExpiresInHours(parseInt(e.target.value))}
+        >
+          <option value={1}>1 hour</option>
+          <option value={4}>4 hours</option>
+          <option value={8}>8 hours</option>
+          <option value={24}>24 hours</option>
+          <option value={48}>2 days</option>
+          <option value={168}>1 week</option>
+          <option value={720}>30 days</option>
+        </Select>
+
+        {/* Max Uses */}
+        <div>
+          <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase tracking-wider">
+            Max Uses (optional)
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="100"
+            value={maxUses || ''}
+            onChange={(e) => setMaxUses(e.target.value ? parseInt(e.target.value) : undefined)}
+            placeholder="Unlimited"
+            className="w-full bg-surfaceHighlight border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder-gray-600 focus:border-secondary/50 focus:outline-none transition-colors hover:border-white/20"
+          />
+        </div>
+
+        {error && (
+          <div className="p-3 bg-danger/10 border border-danger/30 rounded-lg text-danger font-mono text-sm flex items-center gap-2">
+            <Icon icon="ph:warning-fill" className="w-4 h-4 flex-shrink-0" />
+            {error instanceof Error ? error.message : 'Failed to create invite'}
+          </div>
+        )}
+
+        {/* Buttons */}
+        <div className="flex gap-3 pt-2">
+          <Button
+            type="button"
+            onClick={onCancel}
+            variant="ghost"
+            className="flex-1"
           >
-            <option value={1}>1 hour</option>
-            <option value={4}>4 hours</option>
-            <option value={8}>8 hours</option>
-            <option value={24}>24 hours</option>
-            <option value={48}>2 days</option>
-            <option value={168}>1 week</option>
-            <option value={720}>30 days</option>
-          </Select>
-
-          {/* Max Uses */}
-          <div>
-            <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase tracking-wider">
-              Max Uses (optional)
-            </label>
-            <input
-              type="number"
-              min="1"
-              max="100"
-              value={maxUses || ''}
-              onChange={(e) => setMaxUses(e.target.value ? parseInt(e.target.value) : undefined)}
-              placeholder="Unlimited"
-              className="w-full bg-surfaceHighlight border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder-gray-600 focus:border-secondary/50 focus:outline-none transition-colors hover:border-white/20"
-            />
-          </div>
-
-          {error && (
-            <div className="p-3 bg-danger/10 border border-danger/30 rounded-lg text-danger font-mono text-sm flex items-center gap-2">
-              <Icon icon="ph:warning-fill" className="w-4 h-4 flex-shrink-0" />
-              {error instanceof Error ? error.message : 'Failed to create invite'}
-            </div>
-          )}
-
-          {/* Buttons */}
-          <div className="flex gap-3 pt-2">
-            <Button
-              type="button"
-              onClick={onCancel}
-              variant="ghost"
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting || !scopeId || actions.length === 0}
-              loading={isSubmitting}
-              variant="secondary"
-              icon="ph:link-bold"
-              className="flex-1"
-            >
-              Create Link
-            </Button>
-          </div>
-        </form>
-      </ModalPanel>
-    </ModalBackdrop>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={isSubmitting || !scopeId || actions.length === 0}
+            loading={isSubmitting}
+            variant="secondary"
+            icon="ph:link-bold"
+            className="flex-1"
+          >
+            Create Link
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
