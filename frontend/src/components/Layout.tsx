@@ -289,8 +289,8 @@ export function Layout({ children }: LayoutProps) {
       {/* Footer */}
       <footer className="glass-panel border-t border-white/5 px-4 py-4 mt-8">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <span className="text-xs font-mono text-gray-500">{COPYRIGHT_TEXT}</span>
           <span className="text-xs font-mono text-gray-600">{APP_NAME} v{APP_VERSION}</span>
+          <span className="text-xs font-mono text-gray-500">{COPYRIGHT_TEXT}</span>
         </div>
       </footer>
 

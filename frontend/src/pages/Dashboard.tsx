@@ -23,7 +23,25 @@ export function Dashboard() {
     enabled: isReady,
   });
 
+  const { data: health } = useQuery({
+    queryKey: ['health'],
+    queryFn: api.getHealthReady,
+    enabled: isReady,
+    refetchInterval: 10000,
+  });
+
   const showStatusMessages = config?.settings?.showStatusMessages ?? true;
+  const maintenanceMode = config?.settings?.maintenanceMode ?? false;
+  const gpioHealthy = health?.checks?.gpio?.status === 'ok';
+
+  // Determine system status
+  const getSystemStatus = () => {
+    if (!connected) return { variant: 'danger' as const, label: 'Reconnecting', icon: 'ph:wifi-slash-fill' };
+    if (!gpioHealthy) return { variant: 'danger' as const, label: 'GPIO Offline', icon: 'ph:warning-fill' };
+    if (maintenanceMode) return { variant: 'maintenance' as const, label: 'Maintenance', icon: 'ph:wrench-fill' };
+    return { variant: 'success' as const, label: 'System Online', icon: null };
+  };
+  const systemStatus = getSystemStatus();
 
   if (!isReady || isLoading) {
     return (
@@ -57,23 +75,22 @@ export function Dashboard() {
 
   return (
     <div className="space-y-12 pb-12">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-4xl font-display font-bold text-white tracking-tight mb-1">Dashboard</h1>
           <p className="text-gray-400 font-mono text-sm">System Status & Control</p>
         </div>
-        <div className="flex items-center gap-3 px-4 py-2 rounded-full glass-panel border-white/5">
-          {connected ? (
-            <>
-              <StatusLight variant="success" pulse />
-              <span className="text-xs font-mono text-success font-bold tracking-wider uppercase">System Online</span>
-            </>
+        <div className="flex items-center gap-3 px-4 py-2 rounded-full glass-panel border-white/5 self-end sm:self-auto">
+          {systemStatus.icon ? (
+            <Icon icon={systemStatus.icon} className={`w-4 h-4 ${systemStatus.variant === 'danger' ? 'text-danger' : systemStatus.variant === 'maintenance' ? 'text-purple-400' : 'text-success'}`} />
           ) : (
-            <>
-              <Icon icon="ph:wifi-slash-fill" className="w-4 h-4 text-danger" />
-              <span className="text-xs font-mono text-danger font-bold tracking-wider uppercase">Reconnecting</span>
-            </>
+            <StatusLight variant={systemStatus.variant} pulse />
           )}
+          <span className={`text-xs font-mono font-bold tracking-wider uppercase ${
+            systemStatus.variant === 'danger' ? 'text-danger' : 
+            systemStatus.variant === 'maintenance' ? 'text-purple-400' : 
+            'text-success'
+          }`}>{systemStatus.label}</span>
         </div>
       </div>
 
@@ -113,6 +130,8 @@ export function Dashboard() {
                       gate={gate} 
                       activeStatus={getGateActiveStatus(gate.id)}
                       showStatusMessages={showStatusMessages}
+                      maintenanceMode={maintenanceMode}
+                      gpioHealthy={gpioHealthy}
                     />
                   </div>
                 ))}

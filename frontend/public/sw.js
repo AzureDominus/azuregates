@@ -9,9 +9,8 @@
  * - Clients should reload when they receive SW_UPDATED message
  */
 
-const APP_NAME = 'AzureGates';
-const APP_VERSION = '1.0.8';
-const CACHE_NAME = `gates-cache-v${APP_VERSION}`;
+// Import version info from generated file (source of truth: src/lib/constants.ts)
+importScripts('./version.js');
 
 // Assets to cache on install - keep minimal for fast startup
 const STATIC_ASSETS = [

@@ -18,6 +18,9 @@ const gpioConfigSchema = z.object({
 // GPIO service URL - Python service running on host
 const GPIO_SERVICE_URL = process.env.GPIO_SERVICE_URL || 'http://host.docker.internal:5000';
 
+// Secret key for authenticating with the GPIO service
+const GPIO_SERVICE_SECRET = process.env.GPIO_SERVICE_SECRET || '';
+
 // In development mode (no GPIO service), we simulate the GPIO operations
 const isSimulated = process.env.NODE_ENV === 'development';
 
@@ -75,9 +78,14 @@ interface PulseResult {
  * @returns PulseResult with async flag indicating if pulse is still running
  */
 async function callGpioServicePulse(pin: number, durationMs: number, activeHigh: boolean): Promise<PulseResult> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (GPIO_SERVICE_SECRET) {
+    headers['X-GPIO-Secret'] = GPIO_SERVICE_SECRET;
+  }
+  
   const response = await fetch(`${GPIO_SERVICE_URL}/pulse`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({
       pin,
       duration_ms: durationMs,
@@ -100,9 +108,14 @@ async function callGpioServicePulse(pin: number, durationMs: number, activeHigh:
  */
 async function forceGpioInactive(pin: number, activeHigh: boolean): Promise<void> {
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (GPIO_SERVICE_SECRET) {
+      headers['X-GPIO-Secret'] = GPIO_SERVICE_SECRET;
+    }
+    
     const response = await fetch(`${GPIO_SERVICE_URL}/stop`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ pin }),
     });
     

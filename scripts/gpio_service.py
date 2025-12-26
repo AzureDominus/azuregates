@@ -3,6 +3,10 @@
 GPIO Service for AzureGates
 Runs on the Raspberry Pi host (not in Docker) and provides GPIO control via HTTP API.
 
+SECURITY:
+    - Only accepts requests from localhost (127.0.0.1, ::1) or Docker bridge (172.17.0.0/16)
+    - Requires X-GPIO-Secret header matching GPIO_SERVICE_SECRET environment variable
+
 Usage:
     ./gpio_service.py [--port PORT] [--host HOST]
 
@@ -21,10 +25,41 @@ The backend container calls this service to control GPIO pins.
 
 import argparse
 import json
+import os
 import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
+
+# Load .env file from project root if it exists
+def load_dotenv():
+    """Load environment variables from .env file."""
+    env_paths = [
+        Path('/opt/gates/.env'),  # Production location on Pi
+        Path(__file__).parent.parent / '.env',  # Development: relative to script
+    ]
+    for env_path in env_paths:
+        if env_path.exists():
+            with open(env_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, _, value = line.partition('=')
+                        key = key.strip()
+                        value = value.strip().strip('"').strip("'")
+                        if key and key not in os.environ:  # Don't override existing env vars
+                            os.environ[key] = value
+            break
+
+load_dotenv()
+
 import RPi.GPIO as GPIO
+
+# Security: Read secret from environment variable
+GPIO_SERVICE_SECRET = os.environ.get('GPIO_SERVICE_SECRET', '')
+
+# Allowed IP prefixes for security (localhost and Docker bridge network)
+ALLOWED_IP_PREFIXES = ('127.', '::1', '172.17.', '172.18.', '172.19.', '172.20.')
 
 # Track active pins and their states
 pin_states = {}
@@ -124,6 +159,28 @@ class GPIOHandler(BaseHTTPRequestHandler):
         # Custom logging
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {args[0]}")
     
+    def check_security(self):
+        """
+        Validate request is from allowed source with correct secret.
+        Returns True if request is allowed, False otherwise.
+        """
+        # Check source IP
+        client_ip = self.client_address[0]
+        if not any(client_ip.startswith(prefix) for prefix in ALLOWED_IP_PREFIXES):
+            print(f"[SECURITY] Rejected request from unauthorized IP: {client_ip}")
+            self.send_json({"error": "Unauthorized: invalid source"}, 403)
+            return False
+        
+        # Check secret header (if secret is configured)
+        if GPIO_SERVICE_SECRET:
+            provided_secret = self.headers.get('X-GPIO-Secret', '')
+            if provided_secret != GPIO_SERVICE_SECRET:
+                print(f"[SECURITY] Rejected request with invalid secret from {client_ip}")
+                self.send_json({"error": "Unauthorized: invalid secret"}, 403)
+                return False
+        
+        return True
+    
     def send_json(self, data, status=200):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
@@ -139,6 +196,15 @@ class GPIOHandler(BaseHTTPRequestHandler):
         self.end_headers()
     
     def do_GET(self):
+        # Health check doesn't require auth (for Docker health checks)
+        if self.path == "/health":
+            self.send_json({"status": "ok"})
+            return
+        
+        # All other endpoints require security validation
+        if not self.check_security():
+            return
+        
         if self.path == "/status":
             # Build active pulses info
             pulses_info = {}
@@ -157,12 +223,14 @@ class GPIOHandler(BaseHTTPRequestHandler):
                 "active_pulses": pulses_info,
                 "locked": [p for p, l in pin_locks.items() if l.locked()]
             })
-        elif self.path == "/health":
-            self.send_json({"status": "ok"})
         else:
             self.send_json({"error": "Not found"}, 404)
     
     def do_POST(self):
+        # All POST endpoints require security validation
+        if not self.check_security():
+            return
+        
         try:
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length).decode()

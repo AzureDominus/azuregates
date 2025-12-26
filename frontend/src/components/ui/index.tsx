@@ -29,7 +29,7 @@ export function PhIcon({ name, className = '', size = 24 }: IconProps) {
 // STATUS LIGHT - Animated status indicator
 // =============================================================================
 
-type StatusVariant = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+type StatusVariant = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'maintenance';
 
 interface StatusLightProps {
   variant?: StatusVariant;
@@ -44,6 +44,7 @@ const statusColors: Record<StatusVariant, string> = {
   danger: '#ff2a2a',
   info: '#00d2ff',
   neutral: '#666666',
+  maintenance: '#a855f7', // Purple for maintenance mode
 };
 
 const statusGlows: Record<StatusVariant, string> = {
@@ -52,6 +53,7 @@ const statusGlows: Record<StatusVariant, string> = {
   danger: '0 0 12px #ff2a2a',
   info: '0 0 12px #00d2ff',
   neutral: '0 0 6px #666',
+  maintenance: '0 0 12px #a855f7',
 };
 
 const statusSizes: Record<'sm' | 'md' | 'lg', number> = {

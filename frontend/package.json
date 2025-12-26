@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:bump": "VERSION_BUMP=1 bun run build",
     "preview": "vite preview",
     "lint": "eslint src --ext .ts,.tsx"
   },

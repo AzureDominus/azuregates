@@ -7,9 +7,11 @@ interface GateCardProps {
   gate: Gate;
   activeStatus?: GateStatus;
   showStatusMessages?: boolean;
+  maintenanceMode?: boolean;
+  gpioHealthy?: boolean;
 }
 
-export function GateCard({ gate, activeStatus, showStatusMessages = true }: GateCardProps) {
+export function GateCard({ gate, activeStatus, showStatusMessages = true, maintenanceMode = false, gpioHealthy = true }: GateCardProps) {
   const queryClient = useQueryClient();
   const [lastResult, setLastResult] = useState<{ success: boolean; message?: string } | null>(null);
   const [remainingMs, setRemainingMs] = useState<number>(0);
@@ -83,8 +85,8 @@ export function GateCard({ gate, activeStatus, showStatusMessages = true }: Gate
           <div>
             <div className="flex items-center gap-3 mb-1">
               <StatusLight 
-                variant={isActive ? 'info' : isDisabled ? 'neutral' : 'success'}
-                pulse={isActive}
+                variant={!gpioHealthy ? 'danger' : isActive ? 'info' : maintenanceMode ? 'maintenance' : isDisabled ? 'neutral' : 'success'}
+                pulse={isActive || !gpioHealthy}
                 size="md"
               />
               <h4 className="font-display font-bold text-xl tracking-wide text-white">{gate.name}</h4>
@@ -136,8 +138,8 @@ export function GateCard({ gate, activeStatus, showStatusMessages = true }: Gate
           })}
         </div>
 
-        {/* Feedback Message */}
-        {showStatusMessages && lastResult && (
+        {/* Feedback Message - always show errors, respect setting for success */}
+        {lastResult && (showStatusMessages || !lastResult.success) && (
           <div 
             className="mt-4 text-center text-xs font-mono py-2 rounded border animate-in fade-in slide-in-from-bottom-2"
             style={{
