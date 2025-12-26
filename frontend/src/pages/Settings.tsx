@@ -390,10 +390,19 @@ export function Settings() {
                       <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase tracking-wider">Cooldown (ms)</label>
                       <input
                         type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         min="0"
                         max="60000"
+                        step="100"
                         value={localConfig.settings.defaultCooldownMs}
                         onChange={(e) => handleSettingsChange('defaultCooldownMs', parseInt(e.target.value) || 0)}
+                        onKeyDown={(e) => {
+                          // Prevent letter input (e, E, +, -, .)
+                          if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+                            e.preventDefault();
+                          }
+                        }}
                         className="w-full px-3 py-2.5 bg-surface border border-white/10 rounded-lg focus:outline-none focus:border-secondary/50 transition-colors text-white"
                       />
                     </div>
@@ -433,7 +442,7 @@ export function Settings() {
                   <div key={location.id} className="bg-surfaceHighlight/50 rounded-xl border border-white/5 overflow-hidden">
                     <div className="p-4 bg-surface/50 border-b border-white/5 flex items-center justify-between">
                       <h3 className="font-display font-medium text-white">{location.name}</h3>
-                      <span className="text-xs font-mono text-gray-600 bg-surfaceHighlight px-2 py-1 rounded">{location.id}</span>
+                      <span className="text-xs font-mono text-gray-600 bg-surfaceHighlight px-2 py-1 rounded">ID:{location.id}</span>
                     </div>
                     <div className="p-4 space-y-6">
                       {location.areas?.map((area, areaIdx) => (

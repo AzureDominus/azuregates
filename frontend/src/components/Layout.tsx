@@ -64,7 +64,7 @@ export function Layout({ children }: LayoutProps) {
   });
 
   return (
-    <div className="min-h-screen flex flex-col relative">
+    <div className="min-h-screen flex flex-col relative pt-safe-area-inset-top">
       {/* Ambient Background Glow */}
       <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-[-1]">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-secondary/5 blur-[120px] animate-pulse-slow" />
