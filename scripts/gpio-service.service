@@ -7,7 +7,9 @@ Type=notify
 User=root
 Group=gpio
 WorkingDirectory=/opt/gates/scripts
-ExecStart=/usr/bin/python3 /opt/gates/scripts/gpio_service.py --port 5000 --host 0.0.0.0
+# Use venv with --system-site-packages for RPi.GPIO access
+Environment="PATH=/opt/gates/.venv/bin:/usr/bin"
+ExecStart=/opt/gates/.venv/bin/python /opt/gates/scripts/gpio_service.py --port 5000 --host 0.0.0.0
 Restart=always
 RestartSec=5
 WatchdogSec=60
