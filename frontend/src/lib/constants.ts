@@ -6,8 +6,8 @@
 // App info - used throughout the app
 export const APP_NAME = 'AzureGates';
 export const APP_SHORT_NAME = 'Gates';
-export const APP_DESCRIPTION = 'Secure Hardware Control System';
-export const APP_VERSION = '1.0.0';
+export const APP_DESCRIPTION = 'Secure Access Control System';
+export const APP_VERSION = '1.0.1';
 
 // Company info
 export const COMPANY_NAME = 'AzureTech';
@@ -15,7 +15,7 @@ export const COPYRIGHT_YEAR = new Date().getFullYear();
 export const COPYRIGHT_TEXT = `© ${COPYRIGHT_YEAR} ${COMPANY_NAME}`;
 
 // PWA configuration
-export const PWA_THEME_COLOR = '#050508';
+export const PWA_THEME_COLOR = '#1a1a24';
 export const PWA_BACKGROUND_COLOR = '#050508';
 
 // Cache versioning for PWA
