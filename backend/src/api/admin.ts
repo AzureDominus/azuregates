@@ -37,7 +37,36 @@ export async function adminRoutes(app: FastifyInstance) {
       },
     });
 
-    return reply.send(users);
+    // Collect unique activatedBy user IDs to resolve names
+    const activatorIds = [...new Set(
+      users
+        .map(u => u.activatedBy)
+        .filter((id): id is string => id !== null && !id.startsWith('system-'))
+    )];
+
+    // Fetch activator names
+    const activators = activatorIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: activatorIds } },
+          select: { id: true, displayName: true, email: true },
+        })
+      : [];
+
+    const activatorMap = new Map(
+      activators.map(a => [a.id, a.displayName || a.email || a.id])
+    );
+
+    // Enrich users with activatedByName
+    const enrichedUsers = users.map(user => ({
+      ...user,
+      activatedByName: user.activatedBy
+        ? user.activatedBy.startsWith('system-')
+          ? 'System (Admin Group)'
+          : activatorMap.get(user.activatedBy) || user.activatedBy
+        : null,
+    }));
+
+    return reply.send(enrichedUsers);
   });
 
   // Get pending users (not activated and never approved)
@@ -76,7 +105,21 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'User not found' });
     }
 
-    return reply.send(user);
+    // Resolve activatedBy name
+    let activatedByName: string | null = null;
+    if (user.activatedBy) {
+      if (user.activatedBy.startsWith('system-')) {
+        activatedByName = 'System (Admin Group)';
+      } else {
+        const activator = await prisma.user.findUnique({
+          where: { id: user.activatedBy },
+          select: { displayName: true, email: true },
+        });
+        activatedByName = activator?.displayName || activator?.email || user.activatedBy;
+      }
+    }
+
+    return reply.send({ ...user, activatedByName });
   });
 
   // Activate a user account

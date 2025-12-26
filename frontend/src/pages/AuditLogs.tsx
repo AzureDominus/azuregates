@@ -52,6 +52,7 @@ export function AuditLogs() {
             <thead className="text-left border-b border-gray-700">
               <tr>
                 <th className="pb-3 pr-4">Time</th>
+                <th className="pb-3 pr-4">User</th>
                 <th className="pb-3 pr-4">Gate</th>
                 <th className="pb-3 pr-4">Action</th>
                 <th className="pb-3 pr-4">Result</th>
@@ -68,6 +69,9 @@ export function AuditLogs() {
                   <tr key={log.id} className="hover:bg-gray-800/50">
                     <td className="py-3 pr-4 text-gray-400 whitespace-nowrap">
                       {new Date(log.createdAt).toLocaleString()}
+                    </td>
+                    <td className="py-3 pr-4">
+                      {log.user?.displayName || log.user?.email || log.userId || '-'}
                     </td>
                     <td className="py-3 pr-4">
                       {log.gate?.name || log.gateId || '-'}

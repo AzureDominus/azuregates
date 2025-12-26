@@ -258,6 +258,7 @@ export interface AdminUser {
   isActivated: boolean;
   activatedAt: string | null;
   activatedBy: string | null;
+  activatedByName: string | null;
   createdAt: string;
   updatedAt: string;
   _count: { permissions: number };
@@ -288,6 +289,7 @@ export interface AdminUserDetails extends Omit<AdminUser, '_count'> {
   isActivated: boolean;
   activatedAt: string | null;
   activatedBy: string | null;
+  activatedByName: string | null;
 }
 
 export interface GrantPermissionRequest {

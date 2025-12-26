@@ -347,7 +347,7 @@ function UserDetails({ userId, onGrantPermission }: { userId: string; onGrantPer
           {user.activatedAt && (
             <div className="mt-2 text-xs text-gray-500">
               First approved: {new Date(user.activatedAt).toLocaleDateString()}
-              {user.activatedBy && ` by ${user.activatedBy}`}
+              {user.activatedByName && ` by ${user.activatedByName}`}
             </div>
           )}
         </div>
