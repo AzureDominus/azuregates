@@ -69,6 +69,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       # GPIO Service - Python service running on host for GPIO control
       - GPIO_SERVICE_URL=${GPIO_SERVICE_URL:-http://172.17.0.1:5000}
+      - GPIO_SERVICE_SECRET=${GPIO_SERVICE_SECRET:-}
       # Config file settings
       - CONFIG_PATH=/app/config
       - GATES_CONFIG_FILE=${GATES_CONFIG_FILE:-gates.yaml}
