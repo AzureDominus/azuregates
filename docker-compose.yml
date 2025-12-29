@@ -72,7 +72,7 @@ services:
       - GPIO_SERVICE_SECRET=${GPIO_SERVICE_SECRET:-}
       # Config file settings
       - CONFIG_PATH=/app/config
-      - GATES_CONFIG_FILE=${GATES_CONFIG_FILE:-gates.yaml}
+      - DEVICES_CONFIG_FILE=${DEVICES_CONFIG_FILE:-devices.yaml}
     volumes:
       - ./config:/app/config
     # No device mounts needed - GPIO is handled by host Python service

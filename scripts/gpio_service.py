@@ -223,6 +223,52 @@ class GPIOHandler(BaseHTTPRequestHandler):
                 "active_pulses": pulses_info,
                 "locked": [p for p, l in pin_locks.items() if l.locked()]
             })
+        elif self.path.startswith("/read"):
+            # Read GPIO pin states - GET /read?pins=17,18,22
+            try:
+                # Parse query parameters
+                query = {}
+                if "?" in self.path:
+                    query_string = self.path.split("?", 1)[1]
+                    for param in query_string.split("&"):
+                        if "=" in param:
+                            key, value = param.split("=", 1)
+                            query[key] = value
+                
+                pins_param = query.get("pins", "")
+                if not pins_param:
+                    self.send_json({"success": False, "error": "Missing 'pins' parameter"}, 400)
+                    return
+                
+                # Parse pin numbers
+                pin_numbers = [int(p.strip()) for p in pins_param.split(",") if p.strip()]
+                if not pin_numbers:
+                    self.send_json({"success": False, "error": "No valid pins specified"}, 400)
+                    return
+                
+                # Read pin states
+                pin_readings = {}
+                for pin in pin_numbers:
+                    try:
+                        # Setup pin as input if not already configured
+                        GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+                        state = GPIO.input(pin)
+                        pin_readings[str(pin)] = {
+                            "state": state,
+                            "high": state == GPIO.HIGH,
+                            "low": state == GPIO.LOW
+                        }
+                    except Exception as e:
+                        pin_readings[str(pin)] = {"error": str(e)}
+                
+                self.send_json({
+                    "success": True,
+                    "pins": pin_readings
+                })
+            except ValueError as e:
+                self.send_json({"success": False, "error": f"Invalid pin number: {e}"}, 400)
+            except Exception as e:
+                self.send_json({"success": False, "error": str(e)}, 500)
         else:
             self.send_json({"error": "Not found"}, 404)
     

@@ -14,6 +14,9 @@ import { setupSession } from './auth/session.js';
 import { loadConfig } from './config/loader.js';
 import { startCleanupJob, stopCleanupJob } from './jobs/cleanup.js';
 
+// Record startup time for splash screen logic
+export const STARTUP_TIME = Date.now();
+
 const app = Fastify({
   // Trust proxy headers (X-Forwarded-For, etc) set by Caddy
   trustProxy: true,

@@ -2,8 +2,10 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { config } from '../config/env.js';
 import { BACKEND_VERSION } from '../version.js';
+import { STARTUP_TIME } from '../main.js';
 
 const GPIO_SERVICE_URL = process.env.GPIO_SERVICE_URL || 'http://172.17.0.1:5000';
+const AUTHENTIK_URL = process.env.AUTHENTIK_URL || 'https://authentik:9443';
 
 export async function healthRoutes(app: FastifyInstance) {
   // Basic health check
@@ -12,6 +14,47 @@ export async function healthRoutes(app: FastifyInstance) {
       status: 'ok', 
       timestamp: new Date().toISOString(),
       version: BACKEND_VERSION,
+    });
+  });
+
+  // Startup info endpoint (no auth required) - for splash screen
+  app.get('/health/startup', async (_request: FastifyRequest, reply: FastifyReply) => {
+    const now = Date.now();
+    const uptimeMs = now - STARTUP_TIME;
+    const startedAt = new Date(STARTUP_TIME).toISOString();
+    
+    // Check if Authentik is reachable
+    let authentikReady = false;
+    try {
+      const response = await fetch(`${AUTHENTIK_URL}/-/health/ready/`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(2000),
+      });
+      authentikReady = response.ok;
+    } catch {
+      // Authentik not ready
+    }
+
+    // Check if database is ready
+    let databaseReady = false;
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      databaseReady = true;
+    } catch {
+      // Database not ready
+    }
+
+    const allReady = authentikReady && databaseReady;
+
+    return reply.send({
+      status: allReady ? 'ready' : 'starting',
+      startedAt,
+      uptimeMs,
+      version: BACKEND_VERSION,
+      checks: {
+        authentik: authentikReady,
+        database: databaseReady,
+      },
     });
   });
 

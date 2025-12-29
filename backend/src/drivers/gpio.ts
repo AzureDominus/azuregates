@@ -1,6 +1,6 @@
 import type { Device } from '@prisma/client';
 import { z } from 'zod';
-import { BaseDriver, type DriverResult } from './base.js';
+import { BaseDriver, type DriverResult, type DeviceState } from './base.js';
 import type { DeviceAction, GpioDriverConfig } from '../config/schema.js';
 import { logger } from '../lib/logger.js';
 import { getConfig } from '../config/loader.js';
@@ -708,6 +708,63 @@ export class GpioDriver extends BaseDriver {
     }
 
     return { valid: true };
+  }
+
+  /**
+   * Read the current state of a maintainState utility device.
+   * Returns null if the device doesn't support state reading.
+   */
+  async readState(device: Device): Promise<DeviceState | null> {
+    const config = device.driverConfig as unknown as GpioDriverConfig;
+
+    // Only maintainState devices can have their state read
+    if (!config.maintainState) {
+      logger.debug({ deviceId: device.id }, 'Device does not support state reading (not maintainState)');
+      return null;
+    }
+
+    // Determine which pin to read - prefer onPin for utilities
+    const pin = config.onPin ?? config.togglePin ?? config.openPin;
+    if (!pin) {
+      logger.warn({ deviceId: device.id }, 'No pin configured for state reading');
+      return null;
+    }
+
+    const appConfig = getConfig();
+    const isSimulating = appConfig?.settings?.maintenanceMode || (process.env.NODE_ENV === 'development');
+
+    if (isSimulating) {
+      // In simulation mode, we can't know the actual state
+      // Return a simulated "off" state
+      logger.debug({ deviceId: device.id, pin }, 'Simulating state read (maintenance mode or dev)');
+      return {
+        isOn: false,
+        pin,
+        simulated: true,
+      };
+    }
+
+    try {
+      // Read the actual pin state
+      const isHigh = await callGpioServiceRead(pin);
+      
+      // Convert to logical on/off based on activeHigh setting
+      // activeHigh: true  -> HIGH = on,  LOW = off
+      // activeHigh: false -> HIGH = off, LOW = on (inverted, default for most relay modules)
+      const activeHigh = config.activeHigh ?? false;
+      const isOn = activeHigh ? isHigh : !isHigh;
+
+      logger.debug({ deviceId: device.id, pin, isHigh, activeHigh, isOn }, 'Read device state from GPIO');
+
+      return {
+        isOn,
+        pin,
+        simulated: false,
+      };
+    } catch (error) {
+      logger.error({ deviceId: device.id, pin, error }, 'Failed to read device state from GPIO');
+      return null;
+    }
   }
 }
 

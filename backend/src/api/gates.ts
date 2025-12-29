@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { executeDeviceCommand, getDeviceStatus, type DeviceStatus } from '../drivers/executor.js';
+import { gpioDriver } from '../drivers/gpio.js';
 import { checkPermission, getAccessibleDeviceIds, getAccessibleDeviceIdsForGuest } from '../permissions/checker.js';
 import { logAudit } from '../audit/logger.js';
 import { getCurrentUser, authPreHandler, activatedPreHandler, type SessionUser } from '../auth/session.js';
@@ -302,6 +303,44 @@ export async function gatesRoutes(app: FastifyInstance) {
     }
 
     return reply.send(device);
+  });
+
+  // Get device state (for maintainState utility devices)
+  app.get('/devices/:id/state', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const user = getCurrentUser(request);
+    const accessibleDeviceIds = await getAccessibleDevices(user);
+
+    const device = await prisma.device.findUnique({
+      where: { id: request.params.id },
+    });
+
+    if (!device) {
+      return reply.status(404).send({ error: 'Device not found' });
+    }
+
+    // Check if user has access to this device
+    if (!accessibleDeviceIds.has(device.id) && !user?.isAdmin) {
+      return reply.status(403).send({ error: 'No access to this device' });
+    }
+
+    // Only GPIO driver supports state reading currently
+    if (device.driverType !== 'gpio') {
+      return reply.status(400).send({ error: 'State reading not supported for this driver type' });
+    }
+
+    const state = await gpioDriver.readState(device);
+
+    if (state === null) {
+      return reply.status(400).send({ 
+        error: 'Device does not support state reading', 
+        hint: 'Only maintainState utility devices support state reading' 
+      });
+    }
+
+    return reply.send({
+      deviceId: device.id,
+      ...state,
+    });
   });
 
   // Legacy alias

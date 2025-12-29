@@ -184,6 +184,20 @@ select option:checked {
   animation: slide-up 0.3s ease-out forwards;
 }
 
+/* Shimmer animation for loading states */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
 /* Touch feedback for mobile */
 @media (hover: none) {
   .touch-feedback:active {

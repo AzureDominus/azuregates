@@ -8,6 +8,13 @@ export interface DriverResult {
   data?: Record<string, unknown>;
 }
 
+// State reading result for utility devices
+export interface DeviceState {
+  isOn: boolean;
+  pin?: number;
+  simulated?: boolean;
+}
+
 // Base driver interface
 export interface DeviceDriver {
   readonly name: string;
@@ -21,6 +28,9 @@ export interface DeviceDriver {
 
   // Validate driver configuration
   validateConfig(config: unknown): { valid: boolean; errors?: string[] };
+
+  // Read current state for maintainState utility devices (optional)
+  readState?(device: Device): Promise<DeviceState | null>;
 }
 
 // Legacy alias
