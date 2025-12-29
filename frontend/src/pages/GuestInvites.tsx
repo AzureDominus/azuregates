@@ -248,11 +248,32 @@ function CreateInviteForm({ devices, areas, locations, onSubmit, onCancel, isSub
   };
 
   const toggleAction = (action: string) => {
-    setActions(prev => 
-      prev.includes(action) 
-        ? prev.filter(a => a !== action)
-        : [...prev, action]
-    );
+    setActions(prev => {
+      let newActions: string[];
+      
+      if (prev.includes(action)) {
+        // Removing an action
+        newActions = prev.filter(a => a !== action);
+      } else {
+        // Adding an action
+        newActions = [...prev, action];
+        
+        // close requires stop (safety)
+        if (action === 'close' && !newActions.includes('stop')) {
+          newActions.push('stop');
+        }
+      }
+      
+      return newActions;
+    });
+  };
+
+  // Check if an action is required by another selected action
+  const isActionRequired = (action: string): string | null => {
+    if (action === 'stop' && actions.includes('close')) {
+      return 'Required for safety when close is enabled';
+    }
+    return null;
   };
 
   return (
@@ -295,16 +316,28 @@ function CreateInviteForm({ devices, areas, locations, onSubmit, onCancel, isSub
             Allowed Actions
           </label>
           <div className="flex flex-wrap gap-2">
-            {['open', 'close', 'stop', 'toggle', 'on', 'off'].map((action) => (
-              <ToggleButton
-                key={action}
-                active={actions.includes(action)}
-                onClick={() => toggleAction(action)}
-              >
-                {action}
-              </ToggleButton>
-            ))}
+            {['open', 'close', 'stop', 'on', 'off'].map((action) => {
+              const requiredReason = isActionRequired(action);
+              return (
+                <ToggleButton
+                  key={action}
+                  active={actions.includes(action)}
+                  onClick={() => !requiredReason && toggleAction(action)}
+                  disabled={!!requiredReason}
+                  title={requiredReason || undefined}
+                >
+                  {action}
+                  {requiredReason && <Icon icon="ph:lock-simple-fill" className="w-3 h-3 ml-1 opacity-60" />}
+                </ToggleButton>
+              );
+            })}
           </div>
+          {actions.includes('close') && (
+            <p className="text-xs text-yellow-500/80 mt-2 flex items-center gap-1">
+              <Icon icon="ph:info-fill" className="w-3.5 h-3.5" />
+              Stop is required when close is enabled (safety)
+            </p>
+          )}
         </div>
 
         {/* Expiry */}

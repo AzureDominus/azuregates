@@ -10,7 +10,16 @@ const grantPermissionSchema = z.object({
   scopeId: z.string(),
   actions: z.array(z.string()).min(1),
   expiresAt: z.string().datetime().optional(),
-});
+}).refine(
+  (data) => {
+    // Safety: 'close' requires 'stop' to allow emergency stopping
+    if (data.actions.includes('close') && !data.actions.includes('stop')) {
+      return false;
+    }
+    return true;
+  },
+  { message: "Safety requirement: 'close' permission requires 'stop' permission to allow emergency stopping" }
+);
 
 export async function adminRoutes(app: FastifyInstance) {
   // All admin routes require admin access

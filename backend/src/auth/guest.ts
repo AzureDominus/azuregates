@@ -13,7 +13,16 @@ const createInviteSchema = z.object({
   expiresInHours: z.number().min(1).max(720).default(24), // 1 hour to 30 days
   maxUses: z.number().min(1).max(100).optional(),
   description: z.string().max(200).optional(),
-});
+}).refine(
+  (data) => {
+    // Safety: 'close' requires 'stop' to allow emergency stopping
+    if (data.allowedActions.includes('close') && !data.allowedActions.includes('stop')) {
+      return false;
+    }
+    return true;
+  },
+  { message: "Safety requirement: 'close' permission requires 'stop' permission to allow emergency stopping" }
+);
 
 /**
  * Generate a deterministic token for an invite using HMAC.

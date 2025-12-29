@@ -501,18 +501,24 @@ interface ToggleButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export const ToggleButton = forwardRef<HTMLButtonElement, ToggleButtonProps>(
-  ({ active = false, children, className = '', ...props }, ref) => {
+  ({ active = false, children, className = '', disabled, ...props }, ref) => {
     return (
       <button
         ref={ref}
         type="button"
+        disabled={disabled}
         className={`
           px-3 py-1.5 rounded-lg text-sm font-mono uppercase tracking-wider
           transition-all duration-200
-          cursor-pointer
           focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/50
+          ${disabled
+            ? 'cursor-not-allowed opacity-60'
+            : 'cursor-pointer'
+          }
           ${active
-            ? 'bg-secondary/20 text-secondary border border-secondary/50 shadow-[0_0_10px_rgba(0,210,255,0.1)]'
+            ? disabled
+              ? 'bg-secondary/10 text-secondary/70 border border-secondary/30'
+              : 'bg-secondary/20 text-secondary border border-secondary/50 shadow-[0_0_10px_rgba(0,210,255,0.1)]'
             : 'bg-surfaceHighlight text-gray-400 border border-white/10 hover:border-white/20 hover:text-gray-300'
           }
           ${className}
