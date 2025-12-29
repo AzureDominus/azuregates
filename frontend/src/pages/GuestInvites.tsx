@@ -256,7 +256,15 @@ function CreateInviteForm({ devices, areas, locations, onSubmit, onCancel, isSub
     // Collect all unique capabilities from scope devices
     const allCapabilities = new Set<string>();
     scopeDevices.forEach((d: any) => {
+      // Add explicit capabilities
       (d.capabilities || []).forEach((c: string) => allCapabilities.add(c));
+      
+      // For maintainState utilities, implicitly add on/off if not already present
+      const driverConfig = d.driverConfig || {};
+      if (d.deviceType === 'utility' && driverConfig.maintainState) {
+        allCapabilities.add('on');
+        allCapabilities.add('off');
+      }
     });
     
     // Filter to only the actions we support in permissions (no toggle)

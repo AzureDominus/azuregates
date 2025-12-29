@@ -465,7 +465,17 @@ function GrantPermissionModal({ userId, onClose }: { userId: string; onClose: ()
     // Collect all unique capabilities from scope devices
     const allCapabilities = new Set<string>();
     scopeDevices.forEach(d => {
+      // Add explicit capabilities
       (d.capabilities || []).forEach(c => allCapabilities.add(c));
+      
+      // For maintainState utilities, implicitly add on/off
+      if (d.deviceType === 'utility') {
+        // Utilities with no gate-like capabilities are assumed to be on/off devices
+        if (!d.capabilities?.some(c => ['open', 'close', 'stop'].includes(c))) {
+          allCapabilities.add('on');
+          allCapabilities.add('off');
+        }
+      }
     });
     
     // Filter to only the actions we support in permissions (no toggle)
