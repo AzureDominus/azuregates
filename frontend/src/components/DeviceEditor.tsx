@@ -210,7 +210,7 @@ export function DeviceEditor({ device, onSave, onClose }: DeviceEditorProps) {
           <div className="space-y-3">
             <h3 className="text-xs font-mono text-gray-500 uppercase tracking-wider">Capabilities</h3>
             <p className="text-sm text-gray-500">
-              Toggle switch utilities use <span className="text-secondary">on</span> and <span className="text-secondary">off</span> actions 
+              <span className="text-secondary">Maintain State</span> utilities use <span className="text-secondary">on</span> and <span className="text-secondary">off</span> actions 
               automatically. Use permissions to control whether users can turn the device on, off, or both.
             </p>
           </div>
@@ -359,9 +359,9 @@ export function DeviceEditor({ device, onSave, onClose }: DeviceEditorProps) {
                 checked={getConfig().maintainState === true}
                 onChange={(e) => {
                   updateConfig('maintainState', e.target.checked);
-                  // When enabling maintainState, clear capabilities (toggle switch handles on/off)
+                  // When enabling maintainState, set capabilities to on/off
                   if (e.target.checked) {
-                    setEditedDevice(prev => ({ ...prev, capabilities: [] }));
+                    setEditedDevice(prev => ({ ...prev, capabilities: ['on', 'off'] as DeviceAction[] }));
                   } else {
                     // When disabling, restore default utility capabilities
                     setEditedDevice(prev => ({ ...prev, capabilities: UTILITY_CAPABILITIES }));
