@@ -242,9 +242,15 @@ export function DeviceEditor({ device, onSave, onClose }: DeviceEditorProps) {
                   value={getConfig().onPin ?? ''}
                   onChange={(e) => {
                     const pin = e.target.value ? parseInt(e.target.value) : undefined;
-                    // Set both onPin and offPin to the same value for utilities
-                    updateConfig('onPin', pin);
-                    updateConfig('offPin', pin);
+                    // Set both onPin and offPin to the same value for utilities (in one update)
+                    setEditedDevice(prev => ({
+                      ...prev,
+                      config: {
+                        ...prev.config,
+                        onPin: pin,
+                        offPin: pin,
+                      },
+                    }));
                   }}
                   onKeyDown={(e) => {
                     if (['e', 'E', '+', '-', '.'].includes(e.key)) {
