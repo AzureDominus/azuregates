@@ -447,7 +447,12 @@ export async function gatesRoutes(app: FastifyInstance) {
       }
 
       // Check device capabilities
-      if (!device.capabilities.includes(action)) {
+      // For maintainState utilities, on/off are implicitly supported even if not in capabilities
+      const driverConfig = device.driverConfig as Record<string, unknown>;
+      const isMaintainStateUtility = device.deviceType === 'utility' && driverConfig?.maintainState === true;
+      const actionIsImplicitlySupported = isMaintainStateUtility && ['on', 'off'].includes(action);
+      
+      if (!device.capabilities.includes(action) && !actionIsImplicitlySupported) {
         await logAudit({
           deviceId,
           action,

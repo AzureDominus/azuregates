@@ -225,6 +225,7 @@ class GPIOHandler(BaseHTTPRequestHandler):
             })
         elif self.path.startswith("/read"):
             # Read GPIO pin states - GET /read?pins=17,18,22
+            # For OUTPUT pins, returns tracked state. For INPUT pins, reads physical state.
             try:
                 # Parse query parameters
                 query = {}
@@ -250,14 +251,27 @@ class GPIOHandler(BaseHTTPRequestHandler):
                 pin_readings = {}
                 for pin in pin_numbers:
                     try:
-                        # Setup pin as input if not already configured
-                        GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-                        state = GPIO.input(pin)
-                        pin_readings[str(pin)] = {
-                            "state": state,
-                            "high": state == GPIO.HIGH,
-                            "low": state == GPIO.LOW
-                        }
+                        # Check if this pin is being tracked as an OUTPUT (from set_pin calls)
+                        if pin in pin_states:
+                            # Return tracked state - don't reconfigure as INPUT
+                            tracked_state = pin_states[pin]
+                            is_high = tracked_state in ("high", "inactive")
+                            pin_readings[str(pin)] = {
+                                "state": 1 if is_high else 0,
+                                "high": is_high,
+                                "low": not is_high,
+                                "tracked": True
+                            }
+                        else:
+                            # Pin not tracked - setup as input and read physical state
+                            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+                            state = GPIO.input(pin)
+                            pin_readings[str(pin)] = {
+                                "state": state,
+                                "high": state == GPIO.HIGH,
+                                "low": state == GPIO.LOW,
+                                "tracked": False
+                            }
                     except Exception as e:
                         pin_readings[str(pin)] = {"error": str(e)}
                 

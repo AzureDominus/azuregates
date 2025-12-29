@@ -130,6 +130,7 @@ export function DeviceEditor({ device, onSave, onClose }: DeviceEditorProps) {
 
   const isGpio = editedDevice.driver === 'gpio';
   const isUtility = editedDevice.deviceType === 'utility';
+  const isMaintainStateUtility = isUtility && (editedDevice.config as GpioConfig)?.maintainState === true;
   const availableCapabilities = isUtility ? UTILITY_CAPABILITIES : GATE_CAPABILITIES;
 
   return (
@@ -187,21 +188,33 @@ export function DeviceEditor({ device, onSave, onClose }: DeviceEditorProps) {
           </div>
         </div>
 
-        {/* Capabilities */}
-        <div className="space-y-3">
-          <h3 className="text-xs font-mono text-gray-500 uppercase tracking-wider">Capabilities</h3>
-          <div className="flex flex-wrap gap-2">
-            {availableCapabilities.map((cap) => (
-              <ToggleButton
-                key={cap}
-                active={editedDevice.capabilities?.includes(cap) ?? false}
-                onClick={() => toggleCapability(cap)}
-              >
-                {cap}
-              </ToggleButton>
-            ))}
+        {/* Capabilities - hidden for maintainState utilities (they use toggle switch controlled by permissions) */}
+        {!isMaintainStateUtility && (
+          <div className="space-y-3">
+            <h3 className="text-xs font-mono text-gray-500 uppercase tracking-wider">Capabilities</h3>
+            <div className="flex flex-wrap gap-2">
+              {availableCapabilities.map((cap) => (
+                <ToggleButton
+                  key={cap}
+                  active={editedDevice.capabilities?.includes(cap) ?? false}
+                  onClick={() => toggleCapability(cap)}
+                >
+                  {cap}
+                </ToggleButton>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+        
+        {isMaintainStateUtility && (
+          <div className="space-y-3">
+            <h3 className="text-xs font-mono text-gray-500 uppercase tracking-wider">Capabilities</h3>
+            <p className="text-sm text-gray-500">
+              Toggle switch utilities use <span className="text-secondary">on</span> and <span className="text-secondary">off</span> actions 
+              automatically. Use permissions to control whether users can turn the device on, off, or both.
+            </p>
+          </div>
+        )}
 
         {/* GPIO Configuration */}
         {isGpio && (
@@ -338,12 +351,21 @@ export function DeviceEditor({ device, onSave, onClose }: DeviceEditorProps) {
             {isUtility && (
               <Checkbox
                 checked={getConfig().maintainState === true}
-                onChange={(e) => updateConfig('maintainState', e.target.checked)}
+                onChange={(e) => {
+                  updateConfig('maintainState', e.target.checked);
+                  // When enabling maintainState, clear capabilities (toggle switch handles on/off)
+                  if (e.target.checked) {
+                    setEditedDevice(prev => ({ ...prev, capabilities: [] }));
+                  } else {
+                    // When disabling, restore default utility capabilities
+                    setEditedDevice(prev => ({ ...prev, capabilities: UTILITY_CAPABILITIES }));
+                  }
+                }}
                 label={
                   <>
                     Maintain State
                     <span className="text-xs font-mono text-gray-600 ml-2">
-                      (relay stays on until explicit off)
+                      (toggle switch - stays on until turned off)
                     </span>
                   </>
                 }

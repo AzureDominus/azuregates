@@ -101,10 +101,10 @@ locations:
             deviceType: utility
             enabled: true
             driver: gpio
-            capabilities:
-              - on
-              - off
-              - toggle
+            # For maintainState utilities, capabilities are not listed here.
+            # The toggle switch UI handles on/off automatically.
+            # Permissions control whether a user can turn on vs turn off.
+            capabilities: []
             config:
               # For utilities with on/off, we use a single pin
               onPin: 27
