@@ -2,14 +2,14 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Icon } from '@iconify/react';
 import { api } from '../lib/api';
-import { GateCard } from '../components/GateCard';
+import { DeviceCard } from '../components/DeviceCard';
 import { useRequireAuth } from '../lib/auth';
 import { useGateEvents } from '../lib/useGateEvents';
 import { StatusLight, Badge } from '../components/ui';
 
 export function Dashboard() {
   const { isReady } = useRequireAuth();
-  const { connected, getGateActiveStatus } = useGateEvents();
+  const { connected, getDeviceActiveStatus } = useGateEvents();
   
   const { data: locations, isLoading, error } = useQuery({
     queryKey: ['locations'],
@@ -57,7 +57,7 @@ export function Dashboard() {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-danger">
         <Icon icon="ph:warning-circle-fill" className="w-12 h-12 mb-4" />
-        <p>Failed to load gates</p>
+        <p>Failed to load devices</p>
         <p className="text-sm text-gray-500">{error instanceof Error ? error.message : 'Unknown error'}</p>
       </div>
     );
@@ -67,9 +67,9 @@ export function Dashboard() {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-gray-400">
         <Icon icon="ph:door-fill" className="w-12 h-12 mb-4" />
-        <p>No gates configured</p>
+        <p>No devices configured</p>
         <Link to="/settings" className="mt-4 text-secondary hover:text-secondary/80 interactive">
-          Go to Settings to add gates
+          Go to Settings to add devices
         </Link>
       </div>
     );
@@ -122,15 +122,15 @@ export function Dashboard() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {area.gates?.map((gate, gateIndex) => (
+                {area.devices?.map((device, deviceIndex) => (
                   <div 
-                    key={gate.id} 
+                    key={device.id} 
                     className="fill-mode-backwards"
-                    style={{ animationDelay: `${(locIndex * 200) + (areaIndex * 100) + (gateIndex * 50)}ms` }}
+                    style={{ animationDelay: `${(locIndex * 200) + (areaIndex * 100) + (deviceIndex * 50)}ms` }}
                   >
-                    <GateCard 
-                      gate={gate} 
-                      activeStatus={getGateActiveStatus(gate.id)}
+                    <DeviceCard 
+                      device={device} 
+                      activeStatus={getDeviceActiveStatus(device.id)}
                       showStatusMessages={showStatusMessages}
                       maintenanceMode={maintenanceMode}
                       gpioHealthy={gpioHealthy}

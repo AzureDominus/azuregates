@@ -16,7 +16,7 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   CORS_ORIGIN: z.string().optional(),
   CONFIG_PATH: z.string().default('/app/config'),
-  GATES_CONFIG_FILE: z.string().default('gates.yaml'),
+  DEVICES_CONFIG_FILE: z.string().default('devices.yaml'),
   BASE_URL: z.string().url().default('http://localhost:3000'),
   GPIO_AVAILABLE: z.string().transform((v) => v === 'true').default('false'),
 });
@@ -31,7 +31,7 @@ if (!parsed.success) {
 // Build the full config file path
 const configFilePath = parsed.data.CONFIG_PATH.endsWith('.yaml') || parsed.data.CONFIG_PATH.endsWith('.yml')
   ? parsed.data.CONFIG_PATH  // Legacy: full path specified
-  : `${parsed.data.CONFIG_PATH}/${parsed.data.GATES_CONFIG_FILE}`;  // New: directory + filename
+  : `${parsed.data.CONFIG_PATH}/${parsed.data.DEVICES_CONFIG_FILE}`;  // New: directory + filename
 
 export const config = {
   nodeEnv: parsed.data.NODE_ENV,

@@ -1,7 +1,7 @@
-import type { Gate } from '@prisma/client';
+import type { Device } from '@prisma/client';
 import { z } from 'zod';
 import { BaseDriver, type DriverResult } from './base.js';
-import type { GateAction, WebhookDriverConfig } from '../config/schema.js';
+import type { DeviceAction, WebhookDriverConfig } from '../config/schema.js';
 import { logger } from '../lib/logger.js';
 
 const webhookConfigSchema = z.object({
@@ -11,6 +11,8 @@ const webhookConfigSchema = z.object({
       close: z.string().url().optional(),
       stop: z.string().url().optional(),
       toggle: z.string().url().optional(),
+      on: z.string().url().optional(),
+      off: z.string().url().optional(),
       state: z.string().url().optional(),
     })
     .optional(),
@@ -23,10 +25,10 @@ const webhookConfigSchema = z.object({
 
 export class WebhookDriver extends BaseDriver {
   readonly name = 'webhook';
-  readonly supportedActions: GateAction[] = ['open', 'close', 'stop', 'toggle', 'state'];
+  readonly supportedActions: DeviceAction[] = ['open', 'close', 'stop', 'toggle', 'on', 'off', 'state'];
 
-  async execute(gate: Gate, action: GateAction): Promise<DriverResult> {
-    const config = gate.driverConfig as unknown as WebhookDriverConfig;
+  async execute(device: Device, action: DeviceAction): Promise<DriverResult> {
+    const config = device.driverConfig as unknown as WebhookDriverConfig;
     const url = this.getEndpointUrl(config, action);
 
     if (!url) {
@@ -46,12 +48,12 @@ export class WebhookDriver extends BaseDriver {
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs || 5000);
 
     try {
-      logger.info({ gateId: gate.id, action, url, method }, 'Executing webhook');
+      logger.info({ deviceId: device.id, action, url, method }, 'Executing webhook');
 
       const response = await fetch(url, {
         method,
         headers,
-        body: method !== 'GET' ? JSON.stringify({ action, gateId: gate.id, gateName: gate.name }) : undefined,
+        body: method !== 'GET' ? JSON.stringify({ action, deviceId: device.id, deviceName: device.name }) : undefined,
         signal: controller.signal,
       });
 
@@ -59,7 +61,7 @@ export class WebhookDriver extends BaseDriver {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
-        logger.error({ gateId: gate.id, action, status: response.status, errorText }, 'Webhook failed');
+        logger.error({ deviceId: device.id, action, status: response.status, errorText }, 'Webhook failed');
         return {
           success: false,
           message: `Webhook returned ${response.status}: ${errorText}`,
@@ -73,7 +75,7 @@ export class WebhookDriver extends BaseDriver {
         // Response may not be JSON
       }
 
-      logger.info({ gateId: gate.id, action, status: response.status }, 'Webhook executed successfully');
+      logger.info({ deviceId: device.id, action, status: response.status }, 'Webhook executed successfully');
 
       return {
         success: true,
@@ -84,7 +86,7 @@ export class WebhookDriver extends BaseDriver {
       clearTimeout(timeout);
 
       if (err instanceof Error && err.name === 'AbortError') {
-        logger.error({ gateId: gate.id, action }, 'Webhook timed out');
+        logger.error({ deviceId: device.id, action }, 'Webhook timed out');
         return {
           success: false,
           message: 'Webhook request timed out',
@@ -92,7 +94,7 @@ export class WebhookDriver extends BaseDriver {
       }
 
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      logger.error({ gateId: gate.id, action, err }, 'Webhook execution failed');
+      logger.error({ deviceId: device.id, action, err }, 'Webhook execution failed');
       return {
         success: false,
         message: `Webhook execution failed: ${errorMessage}`,
@@ -100,7 +102,7 @@ export class WebhookDriver extends BaseDriver {
     }
   }
 
-  private getEndpointUrl(config: WebhookDriverConfig, action: GateAction): string | null {
+  private getEndpointUrl(config: WebhookDriverConfig, action: DeviceAction): string | null {
     // Check for action-specific endpoint
     if (config.endpoints && config.endpoints[action]) {
       return config.endpoints[action]!;

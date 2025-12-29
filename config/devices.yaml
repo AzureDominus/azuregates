@@ -1,11 +1,15 @@
-# Gates Configuration - Production (Raspberry Pi)
-# This is the source of truth for all gate definitions
+# Devices Configuration - Production (Raspberry Pi)
+# This is the source of truth for all device definitions (gates, utilities)
 # Changes here will be synced to the database on reload
+#
+# Device Types:
+#   gate - Controllable gate with open/close/stop actions
+#   utility - Light switch or other toggle device with on/off/toggle actions
 #
 # GPIO Pin Assignments:
 #   North Gate: GPIO 2 (open), GPIO 3 (close)
 #   South Gate: GPIO 14 (open), GPIO 15 (close)
-#   Driveway Light: GPIO 17 (toggle)
+#   Driveway Light: GPIO 27 (on/off with maintainState)
 #   Entrance Gate: GPIO 17 (toggle) - DISABLED
 #
 # SAFETY NOTES:
@@ -19,7 +23,7 @@
 version: 1
 
 settings:
-  # Cooldown between commands on the same gate (prevents rapid toggling)
+  # Cooldown between commands on the same device (prevents rapid toggling)
   defaultCooldownMs: 2000
   logLevel: info
   maintenanceMode: false
@@ -34,13 +38,14 @@ locations:
       - id: garage
         name: Garage Gates
         enabled: true
-        gates:
+        devices:
           # North Gate - Main driveway entrance
           # GPIO 2 = open, GPIO 3 = close
           # LOW activates relay (closes circuit), HIGH deactivates (opens circuit)
           # Gate moves while relay is closed, limit switches stop motor at end of travel
           - id: north-gate
             name: North Gate
+            deviceType: gate
             enabled: true
             driver: gpio
             capabilities:
@@ -67,6 +72,7 @@ locations:
           # Same operation as North Gate
           - id: south-gate
             name: South Gate
+            deviceType: gate
             enabled: true
             driver: gpio
             capabilities:
@@ -87,20 +93,24 @@ locations:
       - id: utilities
         name: Utilities
         enabled: true
-        gates:
-          # Driveway Light - Toggle operation
-          # GPIO 17 = toggle
-          # Short pulse to toggle on/off
+        devices:
+          # Driveway Light - Utility with on/off control
+          # GPIO 27 = on/off with maintainState (relay stays on until off command)
           - id: driveway-light
             name: Driveway Light
+            deviceType: utility
             enabled: true
             driver: gpio
             capabilities:
+              - on
+              - off
               - toggle
             config:
-              togglePin: 27
-              # Short pulse duration for toggle operation
-              pulseDurationMs: 500
+              # For utilities with on/off, we use a single pin
+              onPin: 27
+              offPin: 27
+              # maintainState: relay stays on until explicit off command
+              maintainState: true
               activeHigh: false
             metadata:
               notes: "Driveway area lighting control"
@@ -109,12 +119,13 @@ locations:
       - id: entrance
         name: Entrance
         enabled: true
-        gates:
+        devices:
           # Entrance Gate - Currently DISABLED
           # GPIO 17 = toggle (shared pin with driveway light when enabled)
           # NOTE: This gate is disabled - commands will be rejected
           - id: entrance-gate
             name: Entrance Gate
+            deviceType: gate
             enabled: false
             driver: gpio
             capabilities:

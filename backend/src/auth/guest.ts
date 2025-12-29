@@ -7,9 +7,9 @@ import { getCurrentUser, authPreHandler, adminPreHandler, type SessionUser } fro
 import { config } from '../config/env.js';
 
 const createInviteSchema = z.object({
-  scopeType: z.enum(['LOCATION', 'AREA', 'GATE']),
+  scopeType: z.enum(['LOCATION', 'AREA', 'DEVICE']),
   scopeId: z.string(),
-  allowedActions: z.array(z.enum(['open', 'close', 'stop', 'toggle'])).min(1),
+  allowedActions: z.array(z.enum(['open', 'close', 'stop', 'toggle', 'on', 'off'])).min(1),
   expiresInHours: z.number().min(1).max(720).default(24), // 1 hour to 30 days
   maxUses: z.number().min(1).max(100).optional(),
   description: z.string().max(200).optional(),
@@ -95,8 +95,8 @@ export async function guestRoutes(app: FastifyInstance) {
         case 'AREA':
           scopeValid = !!(await prisma.area.findUnique({ where: { id: scopeId } }));
           break;
-        case 'GATE':
-          scopeValid = !!(await prisma.gate.findUnique({ where: { id: scopeId } }));
+        case 'DEVICE':
+          scopeValid = !!(await prisma.device.findUnique({ where: { id: scopeId } }));
           break;
       }
 
@@ -301,7 +301,7 @@ export async function guestRoutes(app: FastifyInstance) {
     }
 
     // Get the scope details
-    let scopeDetails: { name: string; gates?: { id: string; name: string }[] } | null = null;
+    let scopeDetails: { name: string; devices?: { id: string; name: string }[] } | null = null;
     
     switch (invite.scopeType) {
       case 'LOCATION': {
@@ -309,14 +309,14 @@ export async function guestRoutes(app: FastifyInstance) {
           where: { id: invite.scopeId },
           include: {
             areas: {
-              include: { gates: true },
+              include: { devices: true },
             },
           },
         });
         if (location) {
           scopeDetails = {
             name: location.name,
-            gates: location.areas.flatMap((a) => a.gates.map((g) => ({ id: g.id, name: g.name }))),
+            devices: location.areas.flatMap((a) => a.devices.map((d) => ({ id: d.id, name: d.name }))),
           };
         }
         break;
@@ -324,24 +324,24 @@ export async function guestRoutes(app: FastifyInstance) {
       case 'AREA': {
         const area = await prisma.area.findUnique({
           where: { id: invite.scopeId },
-          include: { gates: true },
+          include: { devices: true },
         });
         if (area) {
           scopeDetails = {
             name: area.name,
-            gates: area.gates.map((g) => ({ id: g.id, name: g.name })),
+            devices: area.devices.map((d) => ({ id: d.id, name: d.name })),
           };
         }
         break;
       }
-      case 'GATE': {
-        const gate = await prisma.gate.findUnique({
+      case 'DEVICE': {
+        const device = await prisma.device.findUnique({
           where: { id: invite.scopeId },
         });
-        if (gate) {
+        if (device) {
           scopeDetails = {
-            name: gate.name,
-            gates: [{ id: gate.id, name: gate.name }],
+            name: device.name,
+            devices: [{ id: device.id, name: device.name }],
           };
         }
         break;

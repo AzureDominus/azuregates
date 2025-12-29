@@ -373,7 +373,7 @@ function UserDetails({ userId, onGrantPermission }: { userId: string; onGrantPer
 
         {user.isAdmin ? (
           <div className="text-sm font-mono text-gray-500 italic">
-            Admins have full access to all gates
+            Admins have full access to all devices
           </div>
         ) : user.permissions.length === 0 ? (
           <div className="text-sm font-mono text-gray-500">No permissions granted</div>
@@ -399,7 +399,7 @@ function UserDetails({ userId, onGrantPermission }: { userId: string; onGrantPer
                 </div>
                 <IconButton
                   onClick={() => {
-                    if (confirm('Revoke this permission? The user will lose access to the associated gates.')) {
+                    if (confirm('Revoke this permission? The user will lose access to the associated devices.')) {
                       revokePermissionMutation.mutate(perm.id);
                     }
                   }}
@@ -419,7 +419,7 @@ function UserDetails({ userId, onGrantPermission }: { userId: string; onGrantPer
 
 function GrantPermissionModal({ userId, onClose }: { userId: string; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [scopeType, setScopeType] = useState<'LOCATION' | 'AREA' | 'GATE'>('LOCATION');
+  const [scopeType, setScopeType] = useState<'LOCATION' | 'AREA' | 'DEVICE'>('LOCATION');
   const [scopeId, setScopeId] = useState('');
   const [actions, setActions] = useState<string[]>([]);
 
@@ -440,10 +440,10 @@ function GrantPermissionModal({ userId, onClose }: { userId: string; onClose: ()
   const scopeOptions = scopes ? {
     LOCATION: scopes.locations,
     AREA: scopes.areas,
-    GATE: scopes.gates,
+    DEVICE: scopes.devices,
   }[scopeType] : [];
 
-  const allActions = ['open', 'close', 'stop', 'toggle'];
+  const allActions = ['open', 'close', 'stop', 'toggle', 'on', 'off'];
 
   const toggleAction = (action: string) => {
     setActions(prev => 
@@ -461,18 +461,18 @@ function GrantPermissionModal({ userId, onClose }: { userId: string; onClose: ()
           label="Scope Type"
           value={scopeType}
           onChange={(e) => {
-            setScopeType(e.target.value as 'LOCATION' | 'AREA' | 'GATE');
+            setScopeType(e.target.value as 'LOCATION' | 'AREA' | 'DEVICE');
             setScopeId('');
           }}
         >
-          <option value="LOCATION">Location (all gates in location)</option>
-          <option value="AREA">Area (all gates in area)</option>
-          <option value="GATE">Gate (single gate)</option>
+          <option value="LOCATION">Location (all devices in location)</option>
+          <option value="AREA">Area (all devices in area)</option>
+          <option value="DEVICE">Device (single device)</option>
         </Select>
 
         {/* Scope Selection */}
         <Select
-          label={scopeType === 'LOCATION' ? 'Location' : scopeType === 'AREA' ? 'Area' : 'Gate'}
+          label={scopeType === 'LOCATION' ? 'Location' : scopeType === 'AREA' ? 'Area' : 'Device'}
           value={scopeId}
           onChange={(e) => setScopeId(e.target.value)}
         >

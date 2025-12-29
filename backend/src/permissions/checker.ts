@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
-import type { Gate } from '@prisma/client';
-import type { GateAction } from '../config/schema.js';
+import type { Device } from '@prisma/client';
+import type { DeviceAction } from '../config/schema.js';
 import { ScopeType } from '@prisma/client';
 
 export interface PermissionCheckResult {
@@ -9,14 +9,14 @@ export interface PermissionCheckResult {
 }
 
 /**
- * Check if a user has permission to perform an action on a gate.
- * Permissions are hierarchical: Location > Area > Gate
+ * Check if a user has permission to perform an action on a device.
+ * Permissions are hierarchical: Location > Area > Device
  * Admins bypass all permission checks.
  */
 export async function checkPermission(
   userId: string | null | undefined,
-  gate: Gate & { area: { locationId: string } },
-  action: GateAction,
+  device: Device & { area: { locationId: string } },
+  action: DeviceAction,
   isAdmin?: boolean
 ): Promise<PermissionCheckResult> {
   // If no user is authenticated, deny access
@@ -34,12 +34,12 @@ export async function checkPermission(
     where: {
       userId,
       OR: [
-        // Gate-specific permission
-        { scopeType: ScopeType.GATE, scopeId: gate.id },
+        // Device-specific permission
+        { scopeType: ScopeType.DEVICE, scopeId: device.id },
         // Area permission
-        { scopeType: ScopeType.AREA, scopeId: gate.areaId },
+        { scopeType: ScopeType.AREA, scopeId: device.areaId },
         // Location permission
-        { scopeType: ScopeType.LOCATION, scopeId: gate.area.locationId },
+        { scopeType: ScopeType.LOCATION, scopeId: device.area.locationId },
       ],
     },
   });
@@ -114,21 +114,21 @@ export async function revokePermission(permissionId: string) {
 }
 
 /**
- * Get all gate IDs that a user has any permission for.
- * Resolves hierarchical permissions: LOCATION -> all gates in location, AREA -> all gates in area.
- * Admins get access to all gates.
+ * Get all device IDs that a user has any permission for.
+ * Resolves hierarchical permissions: LOCATION -> all devices in location, AREA -> all devices in area.
+ * Admins get access to all devices.
  * Returns empty set if user has no permissions.
  * 
- * For guests, use getAccessibleGateIdsForGuest instead.
+ * For guests, use getAccessibleDeviceIdsForGuest instead.
  */
-export async function getAccessibleGateIds(
+export async function getAccessibleDeviceIds(
   userId: string | null | undefined,
   isAdmin?: boolean
 ): Promise<Set<string>> {
-  // Admins have access to all gates
+  // Admins have access to all devices
   if (isAdmin) {
-    const allGates = await prisma.gate.findMany({ select: { id: true } });
-    return new Set(allGates.map((g) => g.id));
+    const allDevices = await prisma.device.findMany({ select: { id: true } });
+    return new Set(allDevices.map((d) => d.id));
   }
 
   // No user = no access
@@ -151,7 +151,7 @@ export async function getAccessibleGateIds(
     return new Set();
   }
 
-  const accessibleGateIds = new Set<string>();
+  const accessibleDeviceIds = new Set<string>();
 
   // Collect scope IDs by type for batch queries
   const locationIds: string[] = [];
@@ -164,8 +164,8 @@ export async function getAccessibleGateIds(
     }
 
     switch (perm.scopeType) {
-      case ScopeType.GATE:
-        accessibleGateIds.add(perm.scopeId);
+      case ScopeType.DEVICE:
+        accessibleDeviceIds.add(perm.scopeId);
         break;
       case ScopeType.AREA:
         areaIds.push(perm.scopeId);
@@ -176,58 +176,64 @@ export async function getAccessibleGateIds(
     }
   }
 
-  // Resolve AREA permissions to gate IDs
+  // Resolve AREA permissions to device IDs
   if (areaIds.length > 0) {
-    const areaGates = await prisma.gate.findMany({
+    const areaDevices = await prisma.device.findMany({
       where: { areaId: { in: areaIds } },
       select: { id: true },
     });
-    areaGates.forEach((g) => accessibleGateIds.add(g.id));
+    areaDevices.forEach((d) => accessibleDeviceIds.add(d.id));
   }
 
-  // Resolve LOCATION permissions to gate IDs (via areas)
+  // Resolve LOCATION permissions to device IDs (via areas)
   if (locationIds.length > 0) {
-    const locationGates = await prisma.gate.findMany({
+    const locationDevices = await prisma.device.findMany({
       where: { area: { locationId: { in: locationIds } } },
       select: { id: true },
     });
-    locationGates.forEach((g) => accessibleGateIds.add(g.id));
+    locationDevices.forEach((d) => accessibleDeviceIds.add(d.id));
   }
 
-  return accessibleGateIds;
+  return accessibleDeviceIds;
 }
 
+// Legacy alias
+export const getAccessibleGateIds = getAccessibleDeviceIds;
+
 /**
- * Get accessible gate IDs for a guest user based on their session scope.
- * This is used instead of getAccessibleGateIds for guest sessions.
+ * Get accessible device IDs for a guest user based on their session scope.
+ * This is used instead of getAccessibleDeviceIds for guest sessions.
  */
-export async function getAccessibleGateIdsForGuest(
-  scopeType: 'LOCATION' | 'AREA' | 'GATE',
+export async function getAccessibleDeviceIdsForGuest(
+  scopeType: 'LOCATION' | 'AREA' | 'DEVICE',
   scopeId: string
 ): Promise<Set<string>> {
-  const accessibleGateIds = new Set<string>();
+  const accessibleDeviceIds = new Set<string>();
 
   switch (scopeType) {
-    case 'GATE':
-      accessibleGateIds.add(scopeId);
+    case 'DEVICE':
+      accessibleDeviceIds.add(scopeId);
       break;
     case 'AREA': {
-      const areaGates = await prisma.gate.findMany({
+      const areaDevices = await prisma.device.findMany({
         where: { areaId: scopeId },
         select: { id: true },
       });
-      areaGates.forEach((g) => accessibleGateIds.add(g.id));
+      areaDevices.forEach((d) => accessibleDeviceIds.add(d.id));
       break;
     }
     case 'LOCATION': {
-      const locationGates = await prisma.gate.findMany({
+      const locationDevices = await prisma.device.findMany({
         where: { area: { locationId: scopeId } },
         select: { id: true },
       });
-      locationGates.forEach((g) => accessibleGateIds.add(g.id));
+      locationDevices.forEach((d) => accessibleDeviceIds.add(d.id));
       break;
     }
   }
 
-  return accessibleGateIds;
+  return accessibleDeviceIds;
 }
+
+// Legacy alias
+export const getAccessibleGateIdsForGuest = getAccessibleDeviceIdsForGuest;

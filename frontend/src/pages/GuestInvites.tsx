@@ -82,10 +82,10 @@ export function GuestInvites() {
     );
   }
 
-  // Get all gates for the create form
-  const allGates = locations?.flatMap(l => 
+  // Get all devices for the create form
+  const allDevices = locations?.flatMap(l => 
     l.areas?.flatMap(a => 
-      a.gates?.map(g => ({ ...g, areaName: a.name, locationName: l.name })) || []
+      a.devices?.map(d => ({ ...d, areaName: a.name, locationName: l.name })) || []
     ) || []
   ) || [];
 
@@ -112,7 +112,7 @@ export function GuestInvites() {
       {/* Create Form Modal */}
       {showCreateForm && (
         <CreateInviteForm
-          gates={allGates}
+          devices={allDevices}
           areas={allAreas}
           locations={locations || []}
           onSubmit={(data) => createMutation.mutate(data)}
@@ -212,7 +212,7 @@ export function GuestInvites() {
 }
 
 interface CreateInviteFormProps {
-  gates: any[];
+  devices: any[];
   areas: any[];
   locations: any[];
   onSubmit: (data: CreateInviteRequest) => void;
@@ -221,15 +221,15 @@ interface CreateInviteFormProps {
   error: Error | null;
 }
 
-function CreateInviteForm({ gates, areas, locations, onSubmit, onCancel, isSubmitting, error }: CreateInviteFormProps) {
-  const [scopeType, setScopeType] = useState<'LOCATION' | 'AREA' | 'GATE'>('GATE');
+function CreateInviteForm({ devices, areas, locations, onSubmit, onCancel, isSubmitting, error }: CreateInviteFormProps) {
+  const [scopeType, setScopeType] = useState<'LOCATION' | 'AREA' | 'DEVICE'>('DEVICE');
   const [scopeId, setScopeId] = useState('');
   const [actions, setActions] = useState<string[]>(['open', 'close', 'stop']);
   const [expiresInHours, setExpiresInHours] = useState(24);
   const [maxUses, setMaxUses] = useState<number | undefined>(undefined);
 
-  const scopeOptions = scopeType === 'GATE' 
-    ? gates 
+  const scopeOptions = scopeType === 'DEVICE' 
+    ? devices 
     : scopeType === 'AREA' 
     ? areas 
     : locations;
@@ -267,14 +267,14 @@ function CreateInviteForm({ gates, areas, locations, onSubmit, onCancel, isSubmi
             setScopeId('');
           }}
         >
-          <option value="GATE">Single Gate</option>
-          <option value="AREA">Area (multiple gates)</option>
+          <option value="DEVICE">Single Device</option>
+          <option value="AREA">Area (multiple devices)</option>
           <option value="LOCATION">Entire Location</option>
         </Select>
 
         {/* Scope ID */}
         <Select
-          label={scopeType === 'GATE' ? 'Gate' : scopeType === 'AREA' ? 'Area' : 'Location'}
+          label={scopeType === 'DEVICE' ? 'Device' : scopeType === 'AREA' ? 'Area' : 'Location'}
           value={scopeId}
           onChange={(e) => setScopeId(e.target.value)}
           required
@@ -295,7 +295,7 @@ function CreateInviteForm({ gates, areas, locations, onSubmit, onCancel, isSubmi
             Allowed Actions
           </label>
           <div className="flex flex-wrap gap-2">
-            {['open', 'close', 'stop', 'toggle'].map((action) => (
+            {['open', 'close', 'stop', 'toggle', 'on', 'off'].map((action) => (
               <ToggleButton
                 key={action}
                 active={actions.includes(action)}

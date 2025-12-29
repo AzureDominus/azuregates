@@ -1,5 +1,5 @@
-import type { Gate } from '@prisma/client';
-import type { GateAction } from '../config/schema.js';
+import type { Device } from '@prisma/client';
+import type { DeviceAction } from '../config/schema.js';
 
 // Driver execution result
 export interface DriverResult {
@@ -9,30 +9,33 @@ export interface DriverResult {
 }
 
 // Base driver interface
-export interface GateDriver {
+export interface DeviceDriver {
   readonly name: string;
-  readonly supportedActions: GateAction[];
+  readonly supportedActions: DeviceAction[];
 
   // Check if driver supports an action
-  supportsAction(action: GateAction): boolean;
+  supportsAction(action: DeviceAction): boolean;
 
   // Execute an action
-  execute(gate: Gate, action: GateAction): Promise<DriverResult>;
+  execute(device: Device, action: DeviceAction): Promise<DriverResult>;
 
   // Validate driver configuration
   validateConfig(config: unknown): { valid: boolean; errors?: string[] };
 }
 
-// Abstract base class for drivers
-export abstract class BaseDriver implements GateDriver {
-  abstract readonly name: string;
-  abstract readonly supportedActions: GateAction[];
+// Legacy alias
+export type GateDriver = DeviceDriver;
 
-  supportsAction(action: GateAction): boolean {
+// Abstract base class for drivers
+export abstract class BaseDriver implements DeviceDriver {
+  abstract readonly name: string;
+  abstract readonly supportedActions: DeviceAction[];
+
+  supportsAction(action: DeviceAction): boolean {
     return this.supportedActions.includes(action);
   }
 
-  abstract execute(gate: Gate, action: GateAction): Promise<DriverResult>;
+  abstract execute(device: Device, action: DeviceAction): Promise<DriverResult>;
 
   abstract validateConfig(config: unknown): { valid: boolean; errors?: string[] };
 }

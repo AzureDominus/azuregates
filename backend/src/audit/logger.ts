@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client';
 
 export interface AuditLogEntry {
   userId?: string;
-  gateId?: string;
+  deviceId?: string;
   action: string;
   result: 'success' | 'failure' | 'denied';
   errorMessage?: string;
@@ -15,10 +15,15 @@ export interface AuditLogEntry {
   // For guest users - stored in metadata since guests don't have User records
   isGuest?: boolean;
   guestInviteId?: string;
+  // Legacy alias
+  gateId?: string;
 }
 
 export async function logAudit(entry: AuditLogEntry): Promise<void> {
   try {
+    // Support both deviceId and legacy gateId
+    const deviceId = entry.deviceId ?? entry.gateId;
+    
     // For guests, store the guest info in metadata and set userId to null
     // This avoids foreign key constraint issues since guests don't have User records
     const isGuestUser = entry.isGuest || entry.userId?.startsWith('guest-');
@@ -39,7 +44,7 @@ export async function logAudit(entry: AuditLogEntry): Promise<void> {
       data: {
         // Set userId to null for guests to avoid FK constraint violation
         userId: isGuestUser ? null : entry.userId,
-        gateId: entry.gateId,
+        deviceId,
         action: entry.action,
         result: entry.result,
         errorMessage: entry.errorMessage,
@@ -53,7 +58,7 @@ export async function logAudit(entry: AuditLogEntry): Promise<void> {
     logger.debug(
       {
         userId: entry.userId,
-        gateId: entry.gateId,
+        deviceId,
         action: entry.action,
         result: entry.result,
         isGuest: isGuestUser,

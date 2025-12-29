@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authPreHandler, getCurrentUser } from '../auth/session.js';
 import { logger } from '../lib/logger.js';
-import { getGateStatus } from '../drivers/executor.js';
+import { getDeviceStatus } from '../drivers/executor.js';
 
 // Store connected SSE clients
 interface SSEClient {
@@ -47,12 +47,12 @@ export function broadcastEvent(eventType: string, data: unknown): void {
 }
 
 /**
- * Broadcast a gate command event.
+ * Broadcast a device command event.
  */
-export function broadcastGateCommand(gateId: string, gateName: string, action: string, result: 'success' | 'failure' | 'denied', userId?: string): void {
-  broadcastEvent('gate-command', {
-    gateId,
-    gateName,
+export function broadcastDeviceCommand(deviceId: string, deviceName: string, action: string, result: 'success' | 'failure' | 'denied', userId?: string): void {
+  broadcastEvent('device-command', {
+    deviceId,
+    deviceName,
     action,
     result,
     userId,
@@ -60,13 +60,19 @@ export function broadcastGateCommand(gateId: string, gateName: string, action: s
   });
 }
 
+// Legacy alias
+export const broadcastGateCommand = broadcastDeviceCommand;
+
 /**
- * Broadcast gate status update (active operations).
+ * Broadcast device status update (active operations).
  */
-export function broadcastGateStatus(): void {
-  const status = getGateStatus();
-  broadcastEvent('gate-status', status);
+export function broadcastDeviceStatus(): void {
+  const status = getDeviceStatus();
+  broadcastEvent('device-status', status);
 }
+
+// Legacy alias
+export const broadcastGateStatus = broadcastDeviceStatus;
 
 export async function eventsRoutes(app: FastifyInstance) {
   // SSE endpoint - requires authentication
@@ -87,9 +93,9 @@ export async function eventsRoutes(app: FastifyInstance) {
         'X-Accel-Buffering': 'no', // Disable nginx buffering
       });
 
-      // Send initial connection event with current gate status
-      const initialStatus = getGateStatus();
-      reply.raw.write(`event: connected\ndata: ${JSON.stringify({ clientId, gateStatus: initialStatus })}\n\n`);
+      // Send initial connection event with current device status
+      const initialStatus = getDeviceStatus();
+      reply.raw.write(`event: connected\ndata: ${JSON.stringify({ clientId, deviceStatus: initialStatus })}\n\n`);
 
       // Register client
       clients.set(clientId, {

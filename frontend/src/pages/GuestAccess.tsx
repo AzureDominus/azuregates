@@ -4,7 +4,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { Icon } from '@iconify/react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { GateCard } from '../components/GateCard';
+import { DeviceCard } from '../components/DeviceCard';
 import { Badge } from '../components/ui';
 
 export function GuestAccess() {
@@ -112,22 +112,22 @@ export function GuestAccess() {
   }
 
   if (redeemed && scope) {
-    // Filter gates based on scope
-    const allowedGates: any[] = [];
+    // Filter devices based on scope
+    const allowedDevices: any[] = [];
     
-    if (scope.scopeDetails?.gates) {
-      // Get full gate details from locations data
-      const allGates = locations?.flatMap(l => 
-        l.areas?.flatMap(a => a.gates || []) || []
+    if (scope.scopeDetails?.devices) {
+      // Get full device details from locations data
+      const allDevices = locations?.flatMap(l => 
+        l.areas?.flatMap(a => a.devices || []) || []
       ) || [];
       
-      for (const scopeGate of scope.scopeDetails.gates) {
-        const fullGate = allGates.find(g => g.id === scopeGate.id);
-        if (fullGate) {
+      for (const scopeDevice of scope.scopeDetails.devices) {
+        const fullDevice = allDevices.find(d => d.id === scopeDevice.id);
+        if (fullDevice) {
           // Filter capabilities to only allowed actions
-          allowedGates.push({
-            ...fullGate,
-            capabilities: fullGate.capabilities.filter((c: string) => 
+          allowedDevices.push({
+            ...fullDevice,
+            capabilities: fullDevice.capabilities.filter((c: string) => 
               scope.allowedActions.includes(c)
             ),
           });
@@ -182,27 +182,27 @@ export function GuestAccess() {
             </div>
           </div>
 
-          {/* Gates */}
+          {/* Devices */}
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-150">
             <h2 className="text-xl font-display font-bold text-white flex items-center gap-3">
               <span className="text-gray-500 font-bold">///</span>
-              Available Gates
+              Available Devices
             </h2>
 
-            {allowedGates.length === 0 ? (
+            {allowedDevices.length === 0 ? (
               <div className="glass-panel rounded-xl p-8 text-center border-white/5">
-                <p className="text-gray-400 font-mono">No gates available for your access scope.</p>
+                <p className="text-gray-400 font-mono">No devices available for your access scope.</p>
               </div>
             ) : (
               <div className="grid gap-6">
-                {allowedGates.map((gate, index) => (
+                {allowedDevices.map((device, index) => (
                   <div 
-                    key={gate.id}
+                    key={device.id}
                     className="animate-in zoom-in-95 duration-500 fill-mode-backwards"
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
-                    <GateCard 
-                      gate={gate} 
+                    <DeviceCard 
+                      device={device} 
                       showStatusMessages={showStatusMessages}
                       maintenanceMode={maintenanceMode}
                     />

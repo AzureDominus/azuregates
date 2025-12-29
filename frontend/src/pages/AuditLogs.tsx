@@ -68,7 +68,7 @@ export function AuditLogs() {
           <div className="w-16 h-16 rounded-xl bg-white/5 flex items-center justify-center mx-auto mb-4">
             <Icon icon="ph:file-text" className="w-8 h-8 text-gray-600" />
           </div>
-          <p className="text-gray-500 font-mono">No audit logs yet. Execute some gate commands to see logs here.</p>
+          <p className="text-gray-500 font-mono">No audit logs yet. Execute some device commands to see logs here.</p>
         </div>
       ) : (
         <>
@@ -79,7 +79,7 @@ export function AuditLogs() {
                   <tr>
                     <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider min-w-[180px]">Time</th>
                     <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider min-w-[120px]">User</th>
-                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider min-w-[120px]">Gate</th>
+                    <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider min-w-[120px]">Device</th>
                     <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider min-w-[80px]">Action</th>
                     <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider min-w-[100px]">Result</th>
                     <th className="py-4 px-4 font-mono text-xs text-gray-500 uppercase tracking-wider min-w-[80px]">Latency</th>
@@ -105,7 +105,7 @@ export function AuditLogs() {
                           {log.user?.displayName || log.user?.email || log.userId || '-'}
                         </td>
                         <td className="py-3 px-4 font-display text-white whitespace-nowrap min-w-[120px]">
-                          {log.gate?.name || log.gateId || '-'}
+                          {log.device?.name || log.deviceId || '-'}
                         </td>
                         <td className="py-3 px-4 min-w-[80px]">
                           <Badge variant="default">

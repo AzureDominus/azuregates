@@ -1,29 +1,31 @@
 const API_BASE = '/api';
 
-export type GateAction = 'open' | 'close' | 'stop' | 'toggle' | 'state';
+export type DeviceAction = 'open' | 'close' | 'stop' | 'toggle' | 'on' | 'off' | 'state';
+export type DeviceType = 'gate' | 'utility';
 
-export interface Gate {
+export interface Device {
   id: string;
   areaId: string;
   name: string;
   enabled: boolean;
+  deviceType: DeviceType;
   driverType: string;
   driverConfig: Record<string, unknown>;
   capabilities: string[];
   metadata: Record<string, unknown>;
 }
 
-export interface GateStatus {
-  gateId: string;
-  action: GateAction;
+export interface DeviceStatus {
+  deviceId: string;
+  action: DeviceAction;
   startTime: number;
   estimatedEndTime: number;
   remainingMs: number;
 }
 
-export interface GateCommandEvent {
-  gateId: string;
-  gateName: string;
+export interface DeviceCommandEvent {
+  deviceId: string;
+  deviceName: string;
   action: string;
   result: 'success' | 'failure' | 'denied';
   userId?: string;
@@ -36,7 +38,7 @@ export interface Area {
   name: string;
   enabled: boolean;
   metadata: Record<string, unknown>;
-  gates?: Gate[];
+  devices?: Device[];
 }
 
 export interface Location {
@@ -50,7 +52,7 @@ export interface Location {
 export interface AuditLog {
   id: string;
   userId?: string;
-  gateId?: string;
+  deviceId?: string;
   action: string;
   result: string;
   errorMessage?: string;
@@ -58,7 +60,7 @@ export interface AuditLog {
   latencyMs?: number;
   metadata?: { message?: string; data?: Record<string, unknown> };
   createdAt: string;
-  gate?: { id: string; name: string };
+  device?: { id: string; name: string };
   user?: { id: string; displayName: string; email: string };
 }
 
@@ -71,7 +73,7 @@ export interface AuditLogsResponse {
 
 export interface CommandResult {
   success: boolean;
-  gate: { id: string; name: string };
+  device: { id: string; name: string };
   action: string;
   result?: { message?: string; data?: Record<string, unknown> };
 }
@@ -119,22 +121,22 @@ export const api = {
   // Areas
   getAreas: (locationId: string) => fetchJson<Area[]>(`/locations/${locationId}/areas`),
 
-  // Gates
-  getGates: () => fetchJson<Gate[]>('/gates'),
-  getGate: (id: string) => fetchJson<Gate>(`/gates/${id}`),
-  getGateStatus: () => fetchJson<GateStatus[]>('/gates/status'),
+  // Devices
+  getDevices: () => fetchJson<Device[]>('/devices'),
+  getDevice: (id: string) => fetchJson<Device>(`/devices/${id}`),
+  getDeviceStatus: () => fetchJson<DeviceStatus[]>('/devices/status'),
 
   // Commands
-  sendCommand: (gateId: string, action: GateAction) =>
-    fetchJson<CommandResult>(`/gates/${gateId}/command`, {
+  sendCommand: (deviceId: string, action: DeviceAction) =>
+    fetchJson<CommandResult>(`/devices/${deviceId}/command`, {
       method: 'POST',
       body: JSON.stringify({ action }),
     }),
 
   // Audit logs
-  getAuditLogs: (params?: { gateId?: string; limit?: number; offset?: number }) => {
+  getAuditLogs: (params?: { deviceId?: string; limit?: number; offset?: number }) => {
     const searchParams = new URLSearchParams();
-    if (params?.gateId) searchParams.set('gateId', params.gateId);
+    if (params?.deviceId) searchParams.set('deviceId', params.deviceId);
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.offset) searchParams.set('offset', String(params.offset));
     const query = searchParams.toString();
@@ -142,17 +144,17 @@ export const api = {
   },
 
   // Config
-  getConfig: () => fetchJson<GatesConfig>('/config'),
-  updateConfig: (config: GatesConfig) =>
-    fetchJson<{ success: boolean; config: GatesConfig }>('/config', {
+  getConfig: () => fetchJson<DevicesConfig>('/config'),
+  updateConfig: (config: DevicesConfig) =>
+    fetchJson<{ success: boolean; config: DevicesConfig }>('/config', {
       method: 'PUT',
       body: JSON.stringify(config),
     }),
   reloadConfig: () =>
-    fetchJson<{ success: boolean; config: GatesConfig }>('/config/reload', { method: 'POST' }),
+    fetchJson<{ success: boolean; config: DevicesConfig }>('/config/reload', { method: 'POST' }),
   getConfigHistory: () => fetchJson<string[]>('/config/history'),
   rollbackConfig: (filename: string) =>
-    fetchJson<{ success: boolean; config: GatesConfig }>(`/config/rollback/${encodeURIComponent(filename)}`, {
+    fetchJson<{ success: boolean; config: DevicesConfig }>(`/config/rollback/${encodeURIComponent(filename)}`, {
       method: 'POST',
     }),
 
@@ -219,7 +221,7 @@ export interface User {
 }
 
 // Config types (matching backend schema)
-export interface GatesConfig {
+export interface DevicesConfig {
   version: number;
   settings: GlobalSettings;
   locations: ConfigLocation[];
@@ -245,15 +247,16 @@ export interface ConfigArea {
   name: string;
   enabled?: boolean;
   metadata?: Record<string, unknown>;
-  gates?: ConfigGate[];
+  devices?: ConfigDevice[];
 }
 
-export interface ConfigGate {
+export interface ConfigDevice {
   id: string;
   name: string;
   enabled?: boolean;
+  deviceType?: DeviceType;
   driver: 'gpio' | 'webhook';
-  capabilities: ('open' | 'close' | 'stop' | 'toggle' | 'state')[];
+  capabilities: DeviceAction[];
   config: Record<string, unknown>;
   metadata?: Record<string, unknown>;
 }
@@ -285,7 +288,7 @@ export interface PendingUser {
 export interface UserPermission {
   id: string;
   userId: string;
-  scopeType: 'LOCATION' | 'AREA' | 'GATE';
+  scopeType: 'LOCATION' | 'AREA' | 'DEVICE';
   scopeId: string;
   actions: string[];
   expiresAt: string | null;
@@ -302,7 +305,7 @@ export interface AdminUserDetails extends Omit<AdminUser, '_count'> {
 }
 
 export interface GrantPermissionRequest {
-  scopeType: 'LOCATION' | 'AREA' | 'GATE';
+  scopeType: 'LOCATION' | 'AREA' | 'DEVICE';
   scopeId: string;
   actions: string[];
   expiresAt?: string;
@@ -311,15 +314,15 @@ export interface GrantPermissionRequest {
 export interface ScopesResponse {
   locations: { id: string; name: string }[];
   areas: { id: string; name: string; locationId: string }[];
-  gates: { id: string; name: string; areaId: string; capabilities: string[] }[];
+  devices: { id: string; name: string; areaId: string; capabilities: string[]; deviceType?: string }[];
 }
 
 export interface GuestScope {
-  scopeType: 'LOCATION' | 'AREA' | 'GATE';
+  scopeType: 'LOCATION' | 'AREA' | 'DEVICE';
   scopeId: string;
   scopeDetails?: {
     name: string;
-    gates?: { id: string; name: string }[];
+    devices?: { id: string; name: string }[];
   };
   allowedActions: string[];
   expiresAt: string;
@@ -327,7 +330,7 @@ export interface GuestScope {
 
 export interface Invite {
   id: string;
-  scopeType: 'LOCATION' | 'AREA' | 'GATE';
+  scopeType: 'LOCATION' | 'AREA' | 'DEVICE';
   scopeId: string;
   allowedActions: string[];
   expiresAt: string;
@@ -338,9 +341,9 @@ export interface Invite {
 }
 
 export interface CreateInviteRequest {
-  scopeType: 'LOCATION' | 'AREA' | 'GATE';
+  scopeType: 'LOCATION' | 'AREA' | 'DEVICE';
   scopeId: string;
-  allowedActions: ('open' | 'close' | 'stop' | 'toggle')[];
+  allowedActions: DeviceAction[];
   expiresInHours?: number;
   maxUses?: number;
 }

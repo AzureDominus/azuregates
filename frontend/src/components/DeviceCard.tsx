@@ -1,17 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type Gate, type GateAction, type GateStatus } from '../lib/api';
+import { api, type Device, type DeviceAction, type DeviceStatus } from '../lib/api';
 import { StatusLight, ActionButton } from './ui';
 
-interface GateCardProps {
-  gate: Gate;
-  activeStatus?: GateStatus;
+interface DeviceCardProps {
+  device: Device;
+  activeStatus?: DeviceStatus;
   showStatusMessages?: boolean;
   maintenanceMode?: boolean;
   gpioHealthy?: boolean;
 }
 
-export function GateCard({ gate, activeStatus, showStatusMessages = true, maintenanceMode = false, gpioHealthy = true }: GateCardProps) {
+export function DeviceCard({ device, activeStatus, showStatusMessages = true, maintenanceMode = false, gpioHealthy = true }: DeviceCardProps) {
   const queryClient = useQueryClient();
   const [lastResult, setLastResult] = useState<{ success: boolean; message?: string } | null>(null);
   const [remainingMs, setRemainingMs] = useState<number>(0);
@@ -34,8 +34,8 @@ export function GateCard({ gate, activeStatus, showStatusMessages = true, mainte
   }, [activeStatus]);
 
   const commandMutation = useMutation({
-    mutationFn: ({ gateId, action }: { gateId: string; action: GateAction }) =>
-      api.sendCommand(gateId, action),
+    mutationFn: ({ deviceId, action }: { deviceId: string; action: DeviceAction }) =>
+      api.sendCommand(deviceId, action),
     onSuccess: (result) => {
       setLastResult({ success: true, message: result.result?.message });
       setTimeout(() => setLastResult(null), 3000);
@@ -47,15 +47,16 @@ export function GateCard({ gate, activeStatus, showStatusMessages = true, mainte
     },
   });
 
-  const handleAction = (action: GateAction) => {
+  const handleAction = (action: DeviceAction) => {
     // Allow stop to be sent even when another action is in progress
     if (commandMutation.isPending && action !== 'stop') return;
-    commandMutation.mutate({ gateId: gate.id, action });
+    commandMutation.mutate({ deviceId: device.id, action });
   };
 
-  const isDisabled = !gate.enabled;
-  const capabilities = gate.capabilities as GateAction[];
+  const isDisabled = !device.enabled;
+  const capabilities = device.capabilities as DeviceAction[];
   const isActive = !!activeStatus && remainingMs > 0;
+  const isUtility = device.deviceType === 'utility';
   
   // Calculate progress (100% = just started, 0% = done)
   const totalDuration = activeStatus ? activeStatus.estimatedEndTime - activeStatus.startTime : 0;
@@ -89,10 +90,15 @@ export function GateCard({ gate, activeStatus, showStatusMessages = true, mainte
                 pulse={isActive || !gpioHealthy}
                 size="md"
               />
-              <h4 className="font-display font-bold text-xl tracking-wide text-white">{gate.name}</h4>
+              <h4 className="font-display font-bold text-xl tracking-wide text-white">{device.name}</h4>
+              {isUtility && (
+                <span className="text-[9px] font-mono bg-purple-900/30 text-purple-400 border border-purple-700/50 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                  Utility
+                </span>
+              )}
             </div>
             <p className="text-xs font-mono text-gray-500 uppercase tracking-wider pl-5">
-              {gate.driverType} :: {gate.areaId}
+              {device.driverType} :: {device.areaId}
             </p>
           </div>
           
@@ -117,7 +123,7 @@ export function GateCard({ gate, activeStatus, showStatusMessages = true, mainte
 
         {/* Controls Grid */}
         <div className="grid grid-cols-2 gap-3">
-          {capabilities.filter((a): a is 'open' | 'close' | 'stop' | 'toggle' => a !== 'state').map((action) => {
+          {capabilities.filter((a): a is Exclude<DeviceAction, 'state'> => a !== 'state').map((action) => {
             const isStop = action === 'stop';
             const isThisActionActive = isActive && activeStatus?.action === action;
             // Disable non-stop buttons while an action is in progress (either mutation pending or active status)

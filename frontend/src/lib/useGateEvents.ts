@@ -1,17 +1,17 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { GateStatus, GateCommandEvent } from './api';
+import type { DeviceStatus, DeviceCommandEvent } from './api';
 
 const API_BASE = '/api';
 
 interface SSEState {
   connected: boolean;
-  gateStatus: GateStatus[];
-  lastCommand: GateCommandEvent | null;
+  deviceStatus: DeviceStatus[];
+  lastCommand: DeviceCommandEvent | null;
 }
 
 /**
- * Hook for subscribing to Server-Sent Events for real-time gate updates.
+ * Hook for subscribing to Server-Sent Events for real-time device updates.
  * Automatically reconnects on disconnect and invalidates queries when events arrive.
  */
 export function useGateEvents() {
@@ -20,7 +20,7 @@ export function useGateEvents() {
   const reconnectTimeoutRef = useRef<number | null>(null);
   const [state, setState] = useState<SSEState>({
     connected: false,
-    gateStatus: [],
+    deviceStatus: [],
     lastCommand: null,
   });
 
@@ -43,29 +43,29 @@ export function useGateEvents() {
       setState((prev) => ({
         ...prev,
         connected: true,
-        gateStatus: data.gateStatus || [],
+        deviceStatus: data.deviceStatus || data.gateStatus || [],
       }));
       console.log('[SSE] Connected:', data.clientId);
     });
 
-    es.addEventListener('gate-command', (event) => {
-      const data: GateCommandEvent = JSON.parse((event as MessageEvent).data);
+    es.addEventListener('device-command', (event) => {
+      const data: DeviceCommandEvent = JSON.parse((event as MessageEvent).data);
       setState((prev) => ({
         ...prev,
         lastCommand: data,
       }));
       // Invalidate audit logs to refresh the list
       queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
-      console.log('[SSE] Gate command:', data);
+      console.log('[SSE] Device command:', data);
     });
 
-    es.addEventListener('gate-status', (event) => {
-      const data: GateStatus[] = JSON.parse((event as MessageEvent).data);
+    es.addEventListener('device-status', (event) => {
+      const data: DeviceStatus[] = JSON.parse((event as MessageEvent).data);
       setState((prev) => ({
         ...prev,
-        gateStatus: data,
+        deviceStatus: data,
       }));
-      console.log('[SSE] Gate status:', data);
+      console.log('[SSE] Device status:', data);
     });
 
     es.onerror = () => {
@@ -108,19 +108,19 @@ export function useGateEvents() {
     };
   }, [connect, disconnect]);
 
-  // Helper to check if a specific gate is currently active
-  const getGateActiveStatus = useCallback(
-    (gateId: string): GateStatus | undefined => {
-      return state.gateStatus.find((s) => s.gateId === gateId);
+  // Helper to check if a specific device is currently active
+  const getDeviceActiveStatus = useCallback(
+    (deviceId: string): DeviceStatus | undefined => {
+      return state.deviceStatus.find((s) => s.deviceId === deviceId);
     },
-    [state.gateStatus]
+    [state.deviceStatus]
   );
 
   return {
     connected: state.connected,
-    gateStatus: state.gateStatus,
+    deviceStatus: state.deviceStatus,
     lastCommand: state.lastCommand,
-    getGateActiveStatus,
+    getDeviceActiveStatus,
     reconnect: connect,
   };
 }

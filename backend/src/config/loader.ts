@@ -6,27 +6,27 @@ import addFormats from 'ajv-formats';
 import { config } from './env.js';
 import { logger } from '../lib/logger.js';
 import { prisma } from '../lib/prisma.js';
-import type { GatesConfig } from './schema.js';
+import type { DevicesConfig } from './schema.js';
 import type { Prisma } from '@prisma/client';
 
 const ajv = new (Ajv as unknown as typeof Ajv.default)({ allErrors: true, strict: false });
 (addFormats as unknown as typeof addFormats.default)(ajv);
 
 let configSchema: object | null = null;
-let currentConfig: GatesConfig | null = null;
+let currentConfig: DevicesConfig | null = null;
 
 async function loadSchema(): Promise<object> {
   if (configSchema) return configSchema;
   
-  const schemaPath = path.join(config.configDir, 'gates.schema.json');
+  const schemaPath = path.join(config.configDir, 'devices.schema.json');
   const schemaContent = await fs.readFile(schemaPath, 'utf-8');
   configSchema = JSON.parse(schemaContent);
   return configSchema!;
 }
 
-export async function loadConfig(): Promise<GatesConfig> {
+export async function loadConfig(): Promise<DevicesConfig> {
   const configContent = await fs.readFile(config.configPath, 'utf-8');
-  const parsed = yaml.load(configContent) as GatesConfig;
+  const parsed = yaml.load(configContent) as DevicesConfig;
   
   // Validate against schema
   const schema = await loadSchema();
@@ -45,19 +45,19 @@ export async function loadConfig(): Promise<GatesConfig> {
   return parsed;
 }
 
-export function getConfig(): GatesConfig | null {
+export function getConfig(): DevicesConfig | null {
   return currentConfig;
 }
 
-async function syncConfigToDatabase(gatesConfig: GatesConfig): Promise<void> {
+async function syncConfigToDatabase(devicesConfig: DevicesConfig): Promise<void> {
   logger.info('Syncing configuration to database...');
   
   // Collect all IDs from YAML to identify orphaned records
   const locationIds: string[] = [];
   const areaIds: string[] = [];
-  const gateIds: string[] = [];
+  const deviceIds: string[] = [];
   
-  for (const location of gatesConfig.locations) {
+  for (const location of devicesConfig.locations) {
     locationIds.push(location.id);
     
     await prisma.location.upsert({
@@ -95,29 +95,33 @@ async function syncConfigToDatabase(gatesConfig: GatesConfig): Promise<void> {
         },
       });
       
-      for (const gate of area.gates ?? []) {
-        gateIds.push(gate.id);
+      // Support both 'devices' (new) and 'gates' (legacy) property names
+      const devices = area.devices ?? area.gates ?? [];
+      for (const device of devices) {
+        deviceIds.push(device.id);
         
-        await prisma.gate.upsert({
-          where: { id: gate.id },
+        await prisma.device.upsert({
+          where: { id: device.id },
           create: {
-            id: gate.id,
+            id: device.id,
             areaId: area.id,
-            name: gate.name,
-            enabled: gate.enabled ?? true,
-            driverType: gate.driver,
-            driverConfig: (gate.config ?? {}) as unknown as Prisma.InputJsonValue,
-            capabilities: gate.capabilities,
-            metadata: (gate.metadata ?? {}) as unknown as Prisma.InputJsonValue,
+            name: device.name,
+            enabled: device.enabled ?? true,
+            deviceType: device.deviceType ?? 'gate',
+            driverType: device.driver,
+            driverConfig: (device.config ?? {}) as unknown as Prisma.InputJsonValue,
+            capabilities: device.capabilities,
+            metadata: (device.metadata ?? {}) as unknown as Prisma.InputJsonValue,
           },
           update: {
             areaId: area.id,
-            name: gate.name,
-            enabled: gate.enabled ?? true,
-            driverType: gate.driver,
-            driverConfig: (gate.config ?? {}) as unknown as Prisma.InputJsonValue,
-            capabilities: gate.capabilities,
-            metadata: (gate.metadata ?? {}) as unknown as Prisma.InputJsonValue,
+            name: device.name,
+            enabled: device.enabled ?? true,
+            deviceType: device.deviceType ?? 'gate',
+            driverType: device.driver,
+            driverConfig: (device.config ?? {}) as unknown as Prisma.InputJsonValue,
+            capabilities: device.capabilities,
+            metadata: (device.metadata ?? {}) as unknown as Prisma.InputJsonValue,
           },
         });
       }
@@ -125,12 +129,12 @@ async function syncConfigToDatabase(gatesConfig: GatesConfig): Promise<void> {
   }
   
   // Delete orphaned records not in YAML config
-  // Order matters: gates first (due to FK constraints), then areas, then locations
-  const deletedGates = await prisma.gate.deleteMany({
-    where: { id: { notIn: gateIds } },
+  // Order matters: devices first (due to FK constraints), then areas, then locations
+  const deletedDevices = await prisma.device.deleteMany({
+    where: { id: { notIn: deviceIds } },
   });
-  if (deletedGates.count > 0) {
-    logger.info({ count: deletedGates.count }, 'Deleted orphaned gates not in config');
+  if (deletedDevices.count > 0) {
+    logger.info({ count: deletedDevices.count }, 'Deleted orphaned devices not in config');
   }
   
   const deletedAreas = await prisma.area.deleteMany({
@@ -150,7 +154,7 @@ async function syncConfigToDatabase(gatesConfig: GatesConfig): Promise<void> {
   logger.info('Configuration synced to database');
 }
 
-export async function saveConfig(newConfig: GatesConfig): Promise<void> {
+export async function saveConfig(newConfig: DevicesConfig): Promise<void> {
   const schema = await loadSchema();
   const validate = ajv.compile(schema);
   const valid = validate(newConfig);
@@ -188,7 +192,7 @@ async function backupConfig(): Promise<void> {
   }
   
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupPath = path.join(historyDir, `gates-${timestamp}.yaml`);
+  const backupPath = path.join(historyDir, `devices-${timestamp}.yaml`);
   
   try {
     await fs.copyFile(config.configPath, backupPath);
@@ -203,8 +207,9 @@ async function backupConfig(): Promise<void> {
 
 async function pruneBackups(historyDir: string, keep: number): Promise<void> {
   const files = await fs.readdir(historyDir);
+  // Support both old 'gates-' and new 'devices-' prefixes
   const backups = files
-    .filter((f) => f.startsWith('gates-') && f.endsWith('.yaml'))
+    .filter((f) => (f.startsWith('devices-') || f.startsWith('gates-')) && f.endsWith('.yaml'))
     .sort()
     .reverse();
   
@@ -219,8 +224,9 @@ export async function getConfigHistory(): Promise<string[]> {
   
   try {
     const files = await fs.readdir(historyDir);
+    // Support both old 'gates-' and new 'devices-' prefixes
     return files
-      .filter((f) => f.startsWith('gates-') && f.endsWith('.yaml'))
+      .filter((f) => (f.startsWith('devices-') || f.startsWith('gates-')) && f.endsWith('.yaml'))
       .sort()
       .reverse();
   } catch {
@@ -228,17 +234,17 @@ export async function getConfigHistory(): Promise<string[]> {
   }
 }
 
-export async function restoreConfig(filename: string): Promise<GatesConfig> {
+export async function restoreConfig(filename: string): Promise<DevicesConfig> {
   const historyDir = path.join(path.dirname(config.configPath), 'history');
   const backupPath = path.join(historyDir, filename);
   
   // Validate the filename to prevent path traversal
-  if (filename.includes('..') || !filename.startsWith('gates-')) {
+  if (filename.includes('..') || !(filename.startsWith('devices-') || filename.startsWith('gates-'))) {
     throw new Error('Invalid backup filename');
   }
   
   const content = await fs.readFile(backupPath, 'utf-8');
-  const parsed = yaml.load(content) as GatesConfig;
+  const parsed = yaml.load(content) as DevicesConfig;
   
   await saveConfig(parsed);
   return parsed;

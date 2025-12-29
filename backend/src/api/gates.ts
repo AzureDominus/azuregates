@@ -1,11 +1,11 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { executeGateCommand, getGateStatus, type GateStatus } from '../drivers/executor.js';
-import { checkPermission, getAccessibleGateIds, getAccessibleGateIdsForGuest } from '../permissions/checker.js';
+import { executeDeviceCommand, getDeviceStatus, type DeviceStatus } from '../drivers/executor.js';
+import { checkPermission, getAccessibleDeviceIds, getAccessibleDeviceIdsForGuest } from '../permissions/checker.js';
 import { logAudit } from '../audit/logger.js';
 import { getCurrentUser, authPreHandler, activatedPreHandler, type SessionUser } from '../auth/session.js';
-import { broadcastGateCommand, broadcastGateStatus } from './events.js';
+import { broadcastDeviceCommand, broadcastDeviceStatus } from './events.js';
 import { validateGuestInvite } from '../auth/guest.js';
 
 /**
@@ -33,24 +33,27 @@ function getClientIp(request: FastifyRequest): string {
 }
 
 /**
- * Get accessible gate IDs for the current user, handling both regular users and guests.
+ * Get accessible device IDs for the current user, handling both regular users and guests.
  */
-async function getAccessibleGates(user: ReturnType<typeof getCurrentUser>): Promise<Set<string>> {
+async function getAccessibleDevices(user: ReturnType<typeof getCurrentUser>): Promise<Set<string>> {
   if (!user) {
     return new Set();
   }
   
   // For guests, use their session scope
   if (user.isGuest && user.guestScopeType && user.guestScopeId) {
-    return getAccessibleGateIdsForGuest(user.guestScopeType, user.guestScopeId);
+    return getAccessibleDeviceIdsForGuest(user.guestScopeType as 'LOCATION' | 'AREA' | 'DEVICE', user.guestScopeId);
   }
   
   // For regular users, check database permissions
-  return getAccessibleGateIds(user.id, user.isAdmin);
+  return getAccessibleDeviceIds(user.id, user.isAdmin);
 }
 
+// Legacy alias
+const getAccessibleGates = getAccessibleDevices;
+
 const commandSchema = z.object({
-  action: z.enum(['open', 'close', 'stop', 'toggle']),
+  action: z.enum(['open', 'close', 'stop', 'toggle', 'on', 'off']),
 });
 
 export async function gatesRoutes(app: FastifyInstance) {
@@ -61,34 +64,34 @@ export async function gatesRoutes(app: FastifyInstance) {
   // List all locations (filtered by user permissions)
   app.get('/locations', async (request: FastifyRequest, reply: FastifyReply) => {
     const user = getCurrentUser(request);
-    const accessibleGateIds = await getAccessibleGates(user);
+    const accessibleDeviceIds = await getAccessibleDevices(user);
 
     const locations = await prisma.location.findMany({
       include: {
         areas: {
           include: {
-            gates: true,
+            devices: true,
           },
         },
       },
     });
 
-    // Filter to only show gates user has access to
-    // If user has no accessible gates, return empty array
-    if (accessibleGateIds.size === 0 && !user?.isAdmin) {
+    // Filter to only show devices user has access to
+    // If user has no accessible devices, return empty array
+    if (accessibleDeviceIds.size === 0 && !user?.isAdmin) {
       return reply.send([]);
     }
 
-    // Filter gates in each area, then filter out empty areas and locations
+    // Filter devices in each area, then filter out empty areas and locations
     const filteredLocations = locations
       .map((location) => ({
         ...location,
         areas: location.areas
           .map((area) => ({
             ...area,
-            gates: area.gates.filter((gate) => accessibleGateIds.has(gate.id)),
+            devices: area.devices.filter((device) => accessibleDeviceIds.has(device.id)),
           }))
-          .filter((area) => area.gates.length > 0),
+          .filter((area) => area.devices.length > 0),
       }))
       .filter((location) => location.areas.length > 0);
 
@@ -98,14 +101,14 @@ export async function gatesRoutes(app: FastifyInstance) {
   // Get single location (filtered by user permissions)
   app.get('/locations/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const user = getCurrentUser(request);
-    const accessibleGateIds = await getAccessibleGates(user);
+    const accessibleDeviceIds = await getAccessibleDevices(user);
 
     const location = await prisma.location.findUnique({
       where: { id: request.params.id },
       include: {
         areas: {
           include: {
-            gates: true,
+            devices: true,
           },
         },
       },
@@ -115,20 +118,20 @@ export async function gatesRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Location not found' });
     }
 
-    // Filter to only accessible gates
+    // Filter to only accessible devices
     const filteredLocation = {
       ...location,
       areas: location.areas
         .map((area) => ({
           ...area,
-          gates: area.gates.filter((gate) => accessibleGateIds.has(gate.id)),
+          devices: area.devices.filter((device) => accessibleDeviceIds.has(device.id)),
         }))
-        .filter((area) => area.gates.length > 0),
+        .filter((area) => area.devices.length > 0),
     };
 
-    // If user has no access to any gates in this location, return 403
+    // If user has no access to any devices in this location, return 403
     if (filteredLocation.areas.length === 0 && !user?.isAdmin) {
-      return reply.status(403).send({ error: 'No access to gates in this location' });
+      return reply.status(403).send({ error: 'No access to devices in this location' });
     }
 
     return reply.send(filteredLocation);
@@ -137,20 +140,20 @@ export async function gatesRoutes(app: FastifyInstance) {
   // List areas in a location (filtered by user permissions)
   app.get('/locations/:id/areas', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const user = getCurrentUser(request);
-    const accessibleGateIds = await getAccessibleGates(user);
+    const accessibleDeviceIds = await getAccessibleDevices(user);
 
     const areas = await prisma.area.findMany({
       where: { locationId: request.params.id },
-      include: { gates: true },
+      include: { devices: true },
     });
 
-    // Filter to only show areas with accessible gates
+    // Filter to only show areas with accessible devices
     const filteredAreas = areas
       .map((area) => ({
         ...area,
-        gates: area.gates.filter((gate) => accessibleGateIds.has(gate.id)),
+        devices: area.devices.filter((device) => accessibleDeviceIds.has(device.id)),
       }))
-      .filter((area) => area.gates.length > 0);
+      .filter((area) => area.devices.length > 0);
 
     return reply.send(filteredAreas);
   });
@@ -158,59 +161,73 @@ export async function gatesRoutes(app: FastifyInstance) {
   // Get single area (filtered by user permissions)
   app.get('/areas/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const user = getCurrentUser(request);
-    const accessibleGateIds = await getAccessibleGates(user);
+    const accessibleDeviceIds = await getAccessibleDevices(user);
 
     const area = await prisma.area.findUnique({
       where: { id: request.params.id },
-      include: { gates: true, location: true },
+      include: { devices: true, location: true },
     });
 
     if (!area) {
       return reply.status(404).send({ error: 'Area not found' });
     }
 
-    // Filter to only accessible gates
+    // Filter to only accessible devices
     const filteredArea = {
       ...area,
-      gates: area.gates.filter((gate) => accessibleGateIds.has(gate.id)),
+      devices: area.devices.filter((device) => accessibleDeviceIds.has(device.id)),
     };
 
-    // If user has no access to any gates in this area, return 403
-    if (filteredArea.gates.length === 0 && !user?.isAdmin) {
-      return reply.status(403).send({ error: 'No access to gates in this area' });
+    // If user has no access to any devices in this area, return 403
+    if (filteredArea.devices.length === 0 && !user?.isAdmin) {
+      return reply.status(403).send({ error: 'No access to devices in this area' });
     }
 
     return reply.send(filteredArea);
   });
 
-  // List gates in an area (filtered by user permissions)
-  app.get('/areas/:id/gates', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  // List devices in an area (filtered by user permissions)
+  app.get('/areas/:id/devices', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const user = getCurrentUser(request);
-    const accessibleGateIds = await getAccessibleGates(user);
+    const accessibleDeviceIds = await getAccessibleDevices(user);
 
-    const gates = await prisma.gate.findMany({
+    const devices = await prisma.device.findMany({
       where: { areaId: request.params.id },
     });
 
-    // Filter to only accessible gates
-    const filteredGates = gates.filter((gate) => accessibleGateIds.has(gate.id));
+    // Filter to only accessible devices
+    const filteredDevices = devices.filter((device) => accessibleDeviceIds.has(device.id));
 
-    return reply.send(filteredGates);
+    return reply.send(filteredDevices);
   });
 
-  // Get all gates (flat list, filtered by user permissions)
-  app.get('/gates', async (request: FastifyRequest, reply: FastifyReply) => {
+  // Legacy route alias
+  app.get('/areas/:id/gates', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const user = getCurrentUser(request);
-    const accessibleGateIds = await getAccessibleGates(user);
+    const accessibleDeviceIds = await getAccessibleDevices(user);
 
-    // If user has no accessible gates, return empty array
-    if (accessibleGateIds.size === 0 && !user?.isAdmin) {
+    const devices = await prisma.device.findMany({
+      where: { areaId: request.params.id },
+    });
+
+    const filteredDevices = devices.filter((device) => accessibleDeviceIds.has(device.id));
+
+    return reply.send(filteredDevices);
+  });
+
+  // Get all devices (flat list, filtered by user permissions)
+  app.get('/devices', async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = getCurrentUser(request);
+    const accessibleDeviceIds = await getAccessibleDevices(user);
+
+    // If user has no accessible devices, return empty array
+    if (accessibleDeviceIds.size === 0 && !user?.isAdmin) {
       return reply.send([]);
     }
 
-    const gates = await prisma.gate.findMany({
+    const devices = await prisma.device.findMany({
       where: {
-        id: { in: Array.from(accessibleGateIds) },
+        id: { in: Array.from(accessibleDeviceIds) },
       },
       include: {
         area: {
@@ -220,21 +237,51 @@ export async function gatesRoutes(app: FastifyInstance) {
         },
       },
     });
-    return reply.send(gates);
+    return reply.send(devices);
   });
 
-  // Get gate status (active operations)
-  app.get('/gates/status', async (_request: FastifyRequest, reply: FastifyReply) => {
-    const status = getGateStatus();
+  // Legacy alias
+  app.get('/gates', async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = getCurrentUser(request);
+    const accessibleDeviceIds = await getAccessibleDevices(user);
+
+    if (accessibleDeviceIds.size === 0 && !user?.isAdmin) {
+      return reply.send([]);
+    }
+
+    const devices = await prisma.device.findMany({
+      where: {
+        id: { in: Array.from(accessibleDeviceIds) },
+      },
+      include: {
+        area: {
+          include: {
+            location: true,
+          },
+        },
+      },
+    });
+    return reply.send(devices);
+  });
+
+  // Get device status (active operations)
+  app.get('/devices/status', async (_request: FastifyRequest, reply: FastifyReply) => {
+    const status = getDeviceStatus();
     return reply.send(status);
   });
 
-  // Get single gate (with permission check)
-  app.get('/gates/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const user = getCurrentUser(request);
-    const accessibleGateIds = await getAccessibleGates(user);
+  // Legacy alias
+  app.get('/gates/status', async (_request: FastifyRequest, reply: FastifyReply) => {
+    const status = getDeviceStatus();
+    return reply.send(status);
+  });
 
-    const gate = await prisma.gate.findUnique({
+  // Get single device (with permission check)
+  app.get('/devices/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const user = getCurrentUser(request);
+    const accessibleDeviceIds = await getAccessibleDevices(user);
+
+    const device = await prisma.device.findUnique({
       where: { id: request.params.id },
       include: {
         area: {
@@ -245,21 +292,48 @@ export async function gatesRoutes(app: FastifyInstance) {
       },
     });
 
-    if (!gate) {
-      return reply.status(404).send({ error: 'Gate not found' });
+    if (!device) {
+      return reply.status(404).send({ error: 'Device not found' });
     }
 
-    // Check if user has access to this gate
-    if (!accessibleGateIds.has(gate.id) && !user?.isAdmin) {
-      return reply.status(403).send({ error: 'No access to this gate' });
+    // Check if user has access to this device
+    if (!accessibleDeviceIds.has(device.id) && !user?.isAdmin) {
+      return reply.status(403).send({ error: 'No access to this device' });
     }
 
-    return reply.send(gate);
+    return reply.send(device);
   });
 
-  // Execute gate command
+  // Legacy alias
+  app.get('/gates/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const user = getCurrentUser(request);
+    const accessibleDeviceIds = await getAccessibleDevices(user);
+
+    const device = await prisma.device.findUnique({
+      where: { id: request.params.id },
+      include: {
+        area: {
+          include: {
+            location: true,
+          },
+        },
+      },
+    });
+
+    if (!device) {
+      return reply.status(404).send({ error: 'Device not found' });
+    }
+
+    if (!accessibleDeviceIds.has(device.id) && !user?.isAdmin) {
+      return reply.status(403).send({ error: 'No access to this device' });
+    }
+
+    return reply.send(device);
+  });
+
+  // Execute device command
   app.post(
-    '/gates/:id/command',
+    '/devices/:id/command',
     async (
       request: FastifyRequest<{ Params: { id: string }; Body: { action: string } }>,
       reply: FastifyReply
@@ -278,11 +352,11 @@ export async function gatesRoutes(app: FastifyInstance) {
       }
 
       const { action } = parsed.data;
-      const gateId = request.params.id;
+      const deviceId = request.params.id;
 
-      // Get gate
-      const gate = await prisma.gate.findUnique({
-        where: { id: gateId },
+      // Get device
+      const device = await prisma.device.findUnique({
+        where: { id: deviceId },
         include: {
           area: {
             include: {
@@ -292,61 +366,61 @@ export async function gatesRoutes(app: FastifyInstance) {
         },
       });
 
-      if (!gate) {
+      if (!device) {
         await logAudit({
-          gateId,
+          deviceId,
           action,
           result: 'failure',
-          errorMessage: 'Gate not found',
+          errorMessage: 'Device not found',
           clientIp,
           userAgent,
           latencyMs: Date.now() - startTime,
         });
-        return reply.status(404).send({ error: 'Gate not found' });
+        return reply.status(404).send({ error: 'Device not found' });
       }
 
-      // Check if gate is enabled
-      if (!gate.enabled) {
+      // Check if device is enabled
+      if (!device.enabled) {
         await logAudit({
-          gateId,
+          deviceId,
           action,
           result: 'denied',
-          errorMessage: 'Gate is disabled',
+          errorMessage: 'Device is disabled',
           clientIp,
           userAgent,
           latencyMs: Date.now() - startTime,
         });
-        return reply.status(403).send({ error: 'Gate is disabled' });
+        return reply.status(403).send({ error: 'Device is disabled' });
       }
 
       // Check if area and location are enabled
-      if (!gate.area.enabled || !gate.area.location.enabled) {
+      if (!device.area.enabled || !device.area.location.enabled) {
         await logAudit({
-          gateId,
+          deviceId,
           action,
           result: 'denied',
-          errorMessage: 'Gate area or location is disabled',
+          errorMessage: 'Device area or location is disabled',
           clientIp,
           userAgent,
           latencyMs: Date.now() - startTime,
         });
-        return reply.status(403).send({ error: 'Gate area or location is disabled' });
+        return reply.status(403).send({ error: 'Device area or location is disabled' });
       }
 
-      // Check gate capabilities
-      if (!gate.capabilities.includes(action)) {
+      // Check device capabilities
+      if (!device.capabilities.includes(action)) {
         await logAudit({
-          gateId,
+          deviceId,
           action,
           result: 'failure',
-          errorMessage: `Gate does not support action: ${action}`,
+          errorMessage: `Device does not support action: ${action}`,
           clientIp,
           userAgent,
           latencyMs: Date.now() - startTime,
         });
         return reply.status(400).send({
-          error: `Gate does not support action: ${action}`,
-          supportedActions: gate.capabilities,
+          error: `Device does not support action: ${action}`,
+          supportedActions: device.capabilities,
         });
       }
 
@@ -357,7 +431,7 @@ export async function gatesRoutes(app: FastifyInstance) {
       // Require authentication
       if (!user) {
         await logAudit({
-          gateId,
+          deviceId,
           action,
           result: 'denied',
           errorMessage: 'Not authenticated',
@@ -382,7 +456,7 @@ export async function gatesRoutes(app: FastifyInstance) {
           if (!inviteValidation.valid) {
             await logAudit({
               userId,
-              gateId,
+              deviceId,
               action,
               result: 'denied',
               errorMessage: `Guest invite invalid: ${inviteValidation.reason}`,
@@ -400,7 +474,7 @@ export async function gatesRoutes(app: FastifyInstance) {
           if (!user.permissions?.includes(action)) {
             await logAudit({
               userId,
-              gateId,
+              deviceId,
               action,
               result: 'denied',
               errorMessage: 'Guest does not have permission for this action',
@@ -415,11 +489,11 @@ export async function gatesRoutes(app: FastifyInstance) {
           }
         } else {
           // Regular users - check database permissions
-          const permResult = await checkPermission(userId!, gate, action, user.isAdmin);
+          const permResult = await checkPermission(userId!, device, action, user.isAdmin);
           if (!permResult.allowed) {
             await logAudit({
               userId,
-              gateId,
+              deviceId,
               action,
               result: 'denied',
               errorMessage: permResult.reason || 'Permission denied',
@@ -437,17 +511,17 @@ export async function gatesRoutes(app: FastifyInstance) {
 
       // Execute command via driver
       try {
-        const result = await executeGateCommand(gate, action);
+        const result = await executeDeviceCommand(device, action);
         
         // Broadcast status update after command starts (operation is now tracked)
         // This allows the UI to show the progress bar for async operations
-        broadcastGateStatus();
+        broadcastDeviceStatus();
 
         // Check if the driver reported failure
         if (!result.success) {
           await logAudit({
             userId,
-            gateId,
+            deviceId,
             action,
             result: 'failure',
             errorMessage: result.message,
@@ -459,7 +533,7 @@ export async function gatesRoutes(app: FastifyInstance) {
 
           return reply.status(400).send({
             success: false,
-            gate: { id: gate.id, name: gate.name },
+            device: { id: device.id, name: device.name },
             action,
             error: result.message,
             result,
@@ -468,7 +542,7 @@ export async function gatesRoutes(app: FastifyInstance) {
 
         await logAudit({
           userId,
-          gateId,
+          deviceId,
           action,
           result: 'success',
           clientIp,
@@ -478,12 +552,12 @@ export async function gatesRoutes(app: FastifyInstance) {
         });
 
         // Broadcast to all connected SSE clients
-        broadcastGateCommand(gate.id, gate.name, action, 'success', userId);
-        broadcastGateStatus();
+        broadcastDeviceCommand(device.id, device.name, action, 'success', userId);
+        broadcastDeviceStatus();
 
         return reply.send({
           success: true,
-          gate: { id: gate.id, name: gate.name },
+          device: { id: device.id, name: device.name },
           action,
           result,
         });
@@ -491,7 +565,7 @@ export async function gatesRoutes(app: FastifyInstance) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
 
         await logAudit({
-          gateId,
+          deviceId,
           action,
           result: 'failure',
           errorMessage,
@@ -501,21 +575,21 @@ export async function gatesRoutes(app: FastifyInstance) {
         });
 
         // Broadcast failure to all connected SSE clients
-        broadcastGateCommand(gateId, gate.name, action, 'failure', userId);
+        broadcastDeviceCommand(deviceId, device.name, action, 'failure', userId);
 
-        request.log.error({ err, gateId, action }, 'Gate command failed');
+        request.log.error({ err, deviceId, action }, 'Device command failed');
         return reply.status(500).send({ error: 'Command execution failed', details: errorMessage });
       }
     }
   );
 
   // Get audit logs
-  app.get('/audit-logs', async (request: FastifyRequest<{ Querystring: { gateId?: string; limit?: string; offset?: string } }>, reply: FastifyReply) => {
-    const { gateId, limit = '20', offset = '0' } = request.query;
+  app.get('/audit-logs', async (request: FastifyRequest<{ Querystring: { deviceId?: string; limit?: string; offset?: string } }>, reply: FastifyReply) => {
+    const { deviceId, limit = '20', offset = '0' } = request.query;
     const take = Math.min(parseInt(limit, 10), 100);
     const skip = parseInt(offset, 10);
 
-    const where = gateId ? { gateId } : undefined;
+    const where = deviceId ? { deviceId } : undefined;
 
     // Get total count for pagination
     const [logs, total] = await Promise.all([
@@ -525,7 +599,7 @@ export async function gatesRoutes(app: FastifyInstance) {
         take,
         skip,
         include: {
-          gate: { select: { id: true, name: true } },
+          device: { select: { id: true, name: true } },
           user: { select: { id: true, displayName: true, email: true } },
         },
       }),

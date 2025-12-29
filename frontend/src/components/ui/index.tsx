@@ -727,7 +727,7 @@ export function Modal({ children, onClose, title, className = '' }: ModalProps) 
 // ACTION BUTTON - For gate control actions (open, close, stop, toggle)
 // =============================================================================
 
-type ActionType = 'open' | 'close' | 'stop' | 'toggle';
+type ActionType = 'open' | 'close' | 'stop' | 'toggle' | 'on' | 'off';
 
 interface ActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   action: ActionType;
@@ -735,7 +735,7 @@ interface ActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   fullWidth?: boolean;
   /** Progress 0-100 for fill effect during active operation */
   progress?: number;
-  /** Whether this gate is currently active (opening/closing) */
+  /** Whether this device is currently active (operating) */
   isActive?: boolean;
 }
 
@@ -760,6 +760,16 @@ const actionConfig: Record<ActionType, { icon: string; label: string; colors: st
     label: 'TOGGLE',
     colors: 'bg-surfaceHighlight border-white/5 hover:bg-surfaceHighlight/80 hover:border-secondary/50 hover:text-secondary hover:shadow-[0_0_15px_rgba(0,210,255,0.1)]',
   },
+  on: {
+    icon: 'ph:lightbulb-filament-fill',
+    label: 'ON',
+    colors: 'bg-surfaceHighlight border-white/5 hover:bg-surfaceHighlight/80 hover:border-success/50 hover:text-success hover:shadow-[0_0_15px_rgba(0,255,157,0.1)]',
+  },
+  off: {
+    icon: 'ph:lightbulb-fill',
+    label: 'OFF',
+    colors: 'bg-surfaceHighlight border-white/5 hover:bg-surfaceHighlight/80 hover:border-gray-400/50 hover:text-gray-400 hover:shadow-[0_0_15px_rgba(156,163,175,0.1)]',
+  },
 };
 
 const activeLabels: Record<ActionType, string> = {
@@ -767,6 +777,8 @@ const activeLabels: Record<ActionType, string> = {
   close: 'Closing...',
   stop: 'Stopping...',
   toggle: 'Toggling...',
+  on: 'Turning on...',
+  off: 'Turning off...',
 };
 
 export const ActionButton = forwardRef<HTMLButtonElement, ActionButtonProps>(
@@ -780,6 +792,8 @@ export const ActionButton = forwardRef<HTMLButtonElement, ActionButtonProps>(
       close: 'border-primary/50 text-primary',
       stop: 'border-danger/50 text-danger',
       toggle: 'border-secondary/50 text-secondary',
+      on: 'border-success/50 text-success',
+      off: 'border-gray-400/50 text-gray-400',
     };
     
     const progressColors: Record<ActionType, string> = {
@@ -787,6 +801,8 @@ export const ActionButton = forwardRef<HTMLButtonElement, ActionButtonProps>(
       close: 'bg-primary/30',
       stop: 'bg-danger/30',
       toggle: 'bg-secondary/30',
+      on: 'bg-success/30',
+      off: 'bg-gray-400/30',
     };
     
     return (

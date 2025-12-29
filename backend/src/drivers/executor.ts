@@ -1,34 +1,39 @@
-import type { Gate } from '@prisma/client';
-import type { GateAction } from '../config/schema.js';
-import type { DriverResult, GateDriver } from './base.js';
+import type { Device } from '@prisma/client';
+import type { DeviceAction } from '../config/schema.js';
+import type { DriverResult, DeviceDriver } from './base.js';
 import { webhookDriver } from './webhook.js';
-import { gpioDriver, getActiveGateOperations } from './gpio.js';
+import { gpioDriver, getActiveDeviceOperations } from './gpio.js';
 import { logger } from '../lib/logger.js';
 import { getConfig } from '../config/loader.js';
 
-// Re-export for use in gates API
-export { getActiveGateOperations };
+// Re-export for use in devices API
+export { getActiveDeviceOperations };
+// Legacy alias
+export const getActiveGateOperations = getActiveDeviceOperations;
 
-// Gate status type
-export interface GateStatus {
-  gateId: string;
-  action: GateAction;
+// Device status type
+export interface DeviceStatus {
+  deviceId: string;
+  action: DeviceAction;
   startTime: number;
   estimatedEndTime: number;
   remainingMs: number;
 }
 
+// Legacy alias
+export type GateStatus = DeviceStatus;
+
 /**
- * Get status of all gates with active operations.
+ * Get status of all devices with active operations.
  */
-export function getGateStatus(): GateStatus[] {
-  const activeOps = getActiveGateOperations();
+export function getDeviceStatus(): DeviceStatus[] {
+  const activeOps = getActiveDeviceOperations();
   const now = Date.now();
-  const result: GateStatus[] = [];
+  const result: DeviceStatus[] = [];
   
-  for (const [gateId, op] of activeOps) {
+  for (const [deviceId, op] of activeOps) {
     result.push({
-      gateId,
+      deviceId,
       action: op.action,
       startTime: op.startTime,
       estimatedEndTime: op.estimatedEndTime,
@@ -39,8 +44,11 @@ export function getGateStatus(): GateStatus[] {
   return result;
 }
 
+// Legacy alias
+export const getGateStatus = getDeviceStatus;
+
 // Driver registry
-const drivers: Record<string, GateDriver> = {
+const drivers: Record<string, DeviceDriver> = {
   webhook: webhookDriver,
   gpio: gpioDriver,
 };
@@ -49,36 +57,36 @@ const drivers: Record<string, GateDriver> = {
 const cooldowns: Map<string, number> = new Map();
 const executionLocks: Set<string> = new Set();
 
-export function getDriver(driverType: string): GateDriver | null {
+export function getDriver(driverType: string): DeviceDriver | null {
   return drivers[driverType] ?? null;
 }
 
-export function registerDriver(name: string, driver: GateDriver): void {
+export function registerDriver(name: string, driver: DeviceDriver): void {
   drivers[name] = driver;
 }
 
-export async function executeGateCommand(gate: Gate, action: GateAction): Promise<DriverResult> {
-  const gateId = gate.id;
+export async function executeDeviceCommand(device: Device, action: DeviceAction): Promise<DriverResult> {
+  const deviceId = device.id;
 
   // Check for execution lock (mutual exclusion)
   // EXCEPTION: 'stop' action bypasses the lock - it's meant to interrupt active operations
-  if (executionLocks.has(gateId) && action !== 'stop') {
-    logger.warn({ gateId, action }, 'Gate command rejected: another command is in progress');
+  if (executionLocks.has(deviceId) && action !== 'stop') {
+    logger.warn({ deviceId, action }, 'Device command rejected: another command is in progress');
     return {
       success: false,
-      message: 'Another command is already in progress for this gate',
+      message: 'Another command is already in progress for this device',
     };
   }
 
   // Check cooldown
   const config = getConfig();
   const defaultCooldownMs = config?.settings.defaultCooldownMs ?? 2000;
-  const lastExecution = cooldowns.get(gateId);
+  const lastExecution = cooldowns.get(deviceId);
   const now = Date.now();
 
   if (lastExecution && now - lastExecution < defaultCooldownMs) {
     const remainingMs = defaultCooldownMs - (now - lastExecution);
-    logger.warn({ gateId, action, remainingMs }, 'Gate command rejected: cooldown active');
+    logger.warn({ deviceId, action, remainingMs }, 'Device command rejected: cooldown active');
     return {
       success: false,
       message: `Cooldown active. Please wait ${Math.ceil(remainingMs / 1000)} seconds`,
@@ -86,18 +94,18 @@ export async function executeGateCommand(gate: Gate, action: GateAction): Promis
   }
 
   // Get driver
-  const driver = getDriver(gate.driverType);
+  const driver = getDriver(device.driverType);
   if (!driver) {
-    logger.error({ gateId, driverType: gate.driverType }, 'Unknown driver type');
+    logger.error({ deviceId, driverType: device.driverType }, 'Unknown driver type');
     return {
       success: false,
-      message: `Unknown driver type: ${gate.driverType}`,
+      message: `Unknown driver type: ${device.driverType}`,
     };
   }
 
   // Check if driver supports action
   if (!driver.supportsAction(action)) {
-    logger.warn({ gateId, action, driverType: gate.driverType }, 'Driver does not support action');
+    logger.warn({ deviceId, action, driverType: device.driverType }, 'Driver does not support action');
     return {
       success: false,
       message: `Driver ${driver.name} does not support action: ${action}`,
@@ -105,20 +113,23 @@ export async function executeGateCommand(gate: Gate, action: GateAction): Promis
   }
 
   // Acquire lock
-  executionLocks.add(gateId);
+  executionLocks.add(deviceId);
 
   try {
     // Execute command
-    const result = await driver.execute(gate, action);
+    const result = await driver.execute(device, action);
 
     // Update cooldown on success
     if (result.success) {
-      cooldowns.set(gateId, Date.now());
+      cooldowns.set(deviceId, Date.now());
     }
 
     return result;
   } finally {
     // Release lock
-    executionLocks.delete(gateId);
+    executionLocks.delete(deviceId);
   }
 }
+
+// Legacy alias
+export const executeGateCommand = executeDeviceCommand;

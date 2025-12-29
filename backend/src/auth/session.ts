@@ -15,7 +15,7 @@ export interface SessionUser {
   guestExpiry?: Date;
   permissions?: string[];
   // Guest scope info (for guest sessions)
-  guestScopeType?: 'LOCATION' | 'AREA' | 'GATE';
+  guestScopeType?: 'LOCATION' | 'AREA' | 'DEVICE';
   guestScopeId?: string;
   // Account activation status
   isActivated?: boolean;

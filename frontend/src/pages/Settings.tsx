@@ -4,8 +4,8 @@ import { useBlocker } from '@tanstack/react-router';
 import { Icon } from '@iconify/react';
 import { stringify, parse } from 'yaml';
 import Editor from '@monaco-editor/react';
-import { api, GatesConfig, ConfigGate } from '../lib/api';
-import { GateEditor } from '../components/GateEditor';
+import { api, DevicesConfig, ConfigDevice } from '../lib/api';
+import { DeviceEditor } from '../components/DeviceEditor';
 import { StatusLight, Button, Select, Modal } from '../components/ui';
 import { APP_VERSION } from '../lib/constants';
 
@@ -19,8 +19,8 @@ export function Settings() {
   const [showHistory, setShowHistory] = useState(false);
   const [originalYaml, setOriginalYaml] = useState('');
   const [editorMode, setEditorMode] = useState<EditorMode>('visual');
-  const [editingGate, setEditingGate] = useState<{ locationIdx: number; areaIdx: number; gateIdx: number; gate: ConfigGate } | null>(null);
-  const [localConfig, setLocalConfig] = useState<GatesConfig | null>(null);
+  const [editingDevice, setEditingDevice] = useState<{ locationIdx: number; areaIdx: number; deviceIdx: number; device: ConfigDevice } | null>(null);
+  const [localConfig, setLocalConfig] = useState<DevicesConfig | null>(null);
   const editorRef = useRef<any>(null);
 
   // Block navigation when there are unsaved changes
@@ -78,7 +78,7 @@ export function Settings() {
   useEffect(() => {
     if (editorMode === 'visual' && yamlContent) {
       try {
-        const parsed = parse(yamlContent) as GatesConfig;
+        const parsed = parse(yamlContent) as DevicesConfig;
         setLocalConfig(structuredClone(parsed));
         setParseError(null);
       } catch {
@@ -99,7 +99,7 @@ export function Settings() {
 
   // Save config mutation
   const saveMutation = useMutation({
-    mutationFn: (newConfig: GatesConfig) => api.updateConfig(newConfig),
+    mutationFn: (newConfig: DevicesConfig) => api.updateConfig(newConfig),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['config'] });
       queryClient.invalidateQueries({ queryKey: ['config-history'] });
@@ -140,7 +140,7 @@ export function Settings() {
   };
 
   // Handle visual config change
-  const handleVisualChange = (newConfig: GatesConfig) => {
+  const handleVisualChange = (newConfig: DevicesConfig) => {
     setLocalConfig(newConfig);
     const yaml = stringify(newConfig, { indent: 2, lineWidth: 120 });
     setYamlContent(yaml);
@@ -148,28 +148,28 @@ export function Settings() {
     setParseError(null);
   };
 
-  // Handle gate edit from visual editor
-  const handleGateEdit = (locationIdx: number, areaIdx: number, gateIdx: number, gate: ConfigGate) => {
-    setEditingGate({ locationIdx, areaIdx, gateIdx, gate });
+  // Handle device edit from visual editor
+  const handleDeviceEdit = (locationIdx: number, areaIdx: number, deviceIdx: number, device: ConfigDevice) => {
+    setEditingDevice({ locationIdx, areaIdx, deviceIdx, device });
   };
 
-  // Handle gate save from modal
-  const handleGateSave = (updatedGate: ConfigGate) => {
-    if (!localConfig || !editingGate) return;
+  // Handle device save from modal
+  const handleDeviceSave = (updatedDevice: ConfigDevice) => {
+    if (!localConfig || !editingDevice) return;
 
     const newConfig = structuredClone(localConfig);
-    const location = newConfig.locations[editingGate.locationIdx];
-    const area = location.areas?.[editingGate.areaIdx];
-    if (area?.gates) {
-      area.gates[editingGate.gateIdx] = updatedGate;
+    const location = newConfig.locations[editingDevice.locationIdx];
+    const area = location.areas?.[editingDevice.areaIdx];
+    if (area?.devices) {
+      area.devices[editingDevice.deviceIdx] = updatedDevice;
     }
 
     handleVisualChange(newConfig);
-    setEditingGate(null);
+    setEditingDevice(null);
   };
 
   // Handle settings change
-  const handleSettingsChange = (key: keyof GatesConfig['settings'], value: any) => {
+  const handleSettingsChange = (key: keyof DevicesConfig['settings'], value: any) => {
     if (!localConfig) return;
     const newConfig = structuredClone(localConfig);
     (newConfig.settings as any)[key] = value;
@@ -180,7 +180,7 @@ export function Settings() {
   const handleSave = () => {
     try {
       const parsed = editorMode === 'yaml' 
-        ? parse(yamlContent) as GatesConfig 
+        ? parse(yamlContent) as DevicesConfig 
         : localConfig;
       if (parsed) {
         saveMutation.mutate(parsed);
@@ -482,7 +482,7 @@ export function Settings() {
                   </div>
                 </div>
 
-                {/* Locations/Areas/Gates */}
+                {/* Locations/Areas/Devices */}
                 {localConfig.locations.map((location, locationIdx) => (
                   <div key={location.id} className="bg-surfaceHighlight/50 rounded-xl border border-white/5 overflow-hidden">
                     <div className="p-4 bg-surface/50 border-b border-white/5 flex items-center justify-between">
@@ -494,33 +494,40 @@ export function Settings() {
                         <div key={area.id}>
                           <h4 className="text-sm font-display font-medium text-gray-400 mb-3">{area.name}</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {area.gates?.map((gate, gateIdx) => (
+                            {area.devices?.map((device, deviceIdx) => (
                               <div
-                                key={gate.id}
+                                key={device.id}
                                 className={`p-4 rounded-xl border cursor-pointer transition-all hover:border-secondary/50 hover:shadow-[0_0_15px_rgba(0,210,255,0.1)] active:scale-[0.98] ${
-                                  gate.enabled === false
+                                  device.enabled === false
                                     ? 'bg-surface/30 border-white/5 opacity-60'
                                     : 'bg-surface/50 border-white/10'
                                 }`}
-                                onClick={() => handleGateEdit(locationIdx, areaIdx, gateIdx, gate)}
+                                onClick={() => handleDeviceEdit(locationIdx, areaIdx, deviceIdx, device)}
                               >
                                 <div className="flex items-center justify-between mb-3">
-                                  <span className="font-display font-medium text-white">{gate.name}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-display font-medium text-white">{device.name}</span>
+                                    {device.deviceType === 'utility' && (
+                                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">UTILITY</span>
+                                    )}
+                                  </div>
                                   <Icon 
-                                    icon={gate.enabled === false ? "ph:lightning-slash-fill" : "ph:lightning-fill"} 
+                                    icon={device.enabled === false ? "ph:lightning-slash-fill" : "ph:lightning-fill"} 
                                     className="w-5 h-5" 
-                                    style={{ color: gate.enabled === false ? '#4b5563' : '#00ff9d' }}
+                                    style={{ color: device.enabled === false ? '#4b5563' : '#00ff9d' }}
                                   />
                                 </div>
                                 <div className="text-xs font-mono text-gray-500 space-y-1">
-                                  <div>Driver: <span className="text-gray-400">{gate.driver}</span></div>
-                                  <div>Capabilities: <span className="text-gray-400">{gate.capabilities.join(', ')}</span></div>
-                                  {gate.driver === 'gpio' && (
+                                  <div>Driver: <span className="text-gray-400">{device.driver}</span></div>
+                                  <div>Capabilities: <span className="text-gray-400">{device.capabilities.join(', ')}</span></div>
+                                  {device.driver === 'gpio' && (
                                     <div className="text-gray-600">
                                       Pins: {[
-                                        gate.config.openPin !== undefined && `open:${gate.config.openPin}`,
-                                        gate.config.closePin !== undefined && `close:${gate.config.closePin}`,
-                                        gate.config.togglePin !== undefined && `toggle:${gate.config.togglePin}`,
+                                        device.config.openPin !== undefined && `open:${device.config.openPin}`,
+                                        device.config.closePin !== undefined && `close:${device.config.closePin}`,
+                                        device.config.togglePin !== undefined && `toggle:${device.config.togglePin}`,
+                                        device.config.onPin !== undefined && `on:${device.config.onPin}`,
+                                        device.config.offPin !== undefined && `off:${device.config.offPin}`,
                                       ].filter(Boolean).join(', ')}
                                     </div>
                                   )}
@@ -633,10 +640,12 @@ export function Settings() {
                 GPIO Pins
               </h3>
               <ul className="space-y-1.5 font-mono text-xs">
-                <li><code className="text-secondary">openPin</code>, <code className="text-secondary">closePin</code></li>
+                <li><code className="text-secondary">openPin</code>, <code className="text-secondary">closePin</code> <span className="text-gray-500">(gates)</span></li>
+                <li><code className="text-secondary">onPin</code>, <code className="text-secondary">offPin</code> <span className="text-gray-500">(utilities)</span></li>
                 <li><code className="text-secondary">togglePin</code>, <code className="text-secondary">stopPin</code></li>
                 <li><code className="text-secondary">pulseDurationMs</code> <span className="text-gray-500">(50-5000)</span></li>
                 <li><code className="text-secondary">holdDurationMs</code> <span className="text-gray-500">(1k-120k)</span></li>
+                <li><code className="text-secondary">maintainState</code> <span className="text-gray-500">(utilities)</span></li>
                 <li><code className="text-secondary">activeHigh</code> <span className="text-gray-500">(false = LOW)</span></li>
               </ul>
             </div>
@@ -644,12 +653,12 @@ export function Settings() {
         </div>
       </section>
 
-      {/* Gate Editor Modal */}
-      {editingGate && (
-        <GateEditor
-          gate={editingGate.gate}
-          onSave={handleGateSave}
-          onClose={() => setEditingGate(null)}
+      {/* Device Editor Modal */}
+      {editingDevice && (
+        <DeviceEditor
+          device={editingDevice.device}
+          onSave={handleDeviceSave}
+          onClose={() => setEditingDevice(null)}
         />
       )}
 

@@ -60,17 +60,18 @@ model Area {
 
   // Relations
   location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
-  gates    Gate[]
+  devices  Device[]
 
   @@map("areas")
 }
 
-// Gates (controllable units)
-model Gate {
+// Devices (controllable units - gates and utilities)
+model Device {
   id           String   @id
   areaId       String   @map("area_id")
   name         String
   enabled      Boolean  @default(true)
+  deviceType   String   @default("gate") @map("device_type")
   driverType   String   @map("driver_type")
   driverConfig Json     @default("{}") @map("driver_config")
   capabilities String[]
@@ -82,7 +83,7 @@ model Gate {
   area      Area       @relation(fields: [areaId], references: [id], onDelete: Cascade)
   auditLogs AuditLog[]
 
-  @@map("gates")
+  @@map("devices")
 }
 
 // User permissions (including guest access)
@@ -109,7 +110,7 @@ model UserPermission {
 enum ScopeType {
   LOCATION
   AREA
-  GATE
+  DEVICE
 }
 
 // Invites for guest access
@@ -136,7 +137,7 @@ model Invite {
 model AuditLog {
   id           String   @id @default(cuid())
   userId       String?  @map("user_id")
-  gateId       String?  @map("gate_id")
+  deviceId     String?  @map("device_id")
   action       String
   result       String   // 'success' | 'failure' | 'denied'
   errorMessage String?  @map("error_message")
@@ -147,11 +148,11 @@ model AuditLog {
   createdAt    DateTime @default(now()) @map("created_at")
 
   // Relations
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-  gate Gate? @relation(fields: [gateId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
 
   @@index([userId])
-  @@index([gateId])
+  @@index([deviceId])
   @@index([createdAt])
   @@map("audit_logs")
 }

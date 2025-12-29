@@ -6,7 +6,7 @@ import { logger } from '../lib/logger.js';
 import { ScopeType } from '@prisma/client';
 
 const grantPermissionSchema = z.object({
-  scopeType: z.enum(['LOCATION', 'AREA', 'GATE']),
+  scopeType: z.enum(['LOCATION', 'AREA', 'DEVICE']),
   scopeId: z.string(),
   actions: z.array(z.string()).min(1),
   expiresAt: z.string().datetime().optional(),
@@ -283,10 +283,10 @@ export async function adminRoutes(app: FastifyInstance) {
         scopeValid = !!area;
         scopeName = area?.name || scopeId;
         break;
-      case 'GATE':
-        const gate = await prisma.gate.findUnique({ where: { id: scopeId } });
-        scopeValid = !!gate;
-        scopeName = gate?.name || scopeId;
+      case 'DEVICE':
+        const device = await prisma.device.findUnique({ where: { id: scopeId } });
+        scopeValid = !!device;
+        scopeName = device?.name || scopeId;
         break;
     }
 
@@ -335,16 +335,16 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // Get all scopes (for permission dropdown)
   app.get('/scopes', async (_request: FastifyRequest, reply: FastifyReply) => {
-    const [locations, areas, gates] = await Promise.all([
+    const [locations, areas, devices] = await Promise.all([
       prisma.location.findMany({ select: { id: true, name: true } }),
       prisma.area.findMany({ select: { id: true, name: true, locationId: true } }),
-      prisma.gate.findMany({ select: { id: true, name: true, areaId: true, capabilities: true } }),
+      prisma.device.findMany({ select: { id: true, name: true, areaId: true, capabilities: true, deviceType: true } }),
     ]);
 
     return reply.send({
       locations,
       areas,
-      gates,
+      devices,
     });
   });
 }

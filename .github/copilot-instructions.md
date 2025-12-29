@@ -137,6 +137,12 @@ The GPIO driver (`backend/src/drivers/gpio.ts`) enforces **mutual exclusion** be
 - Search params: `useSearch({ strict: false })`
 - All API calls via `src/lib/api.ts`
 
+### AI Agent File Editing Rules
+- **ALWAYS use native tools** (`create_file`, `replace_string_in_file`, `multi_replace_string_in_file`) for local file edits
+- **NEVER use `cat >` or heredocs** to write files locally - this bypasses proper tooling
+- **Only use `cat`** when reading/writing files on the Pi via SSH (where native tools don't work)
+- Use `run_in_terminal` for git commands, builds, and deployments - not file editing
+
 ---
 
 ## Auth & Access

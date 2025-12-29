@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Gates Configuration",
-  "description": "Configuration schema for the Garage Gate Opener v2",
+  "title": "Devices Configuration",
+  "description": "Configuration schema for AzureGates devices (gates and utilities)",
   "type": "object",
   "required": ["version", "settings", "locations"],
   "properties": {
@@ -29,12 +29,12 @@
         "maintenanceMode": {
           "type": "boolean",
           "default": false,
-          "description": "When true, all gate commands are disabled"
+          "description": "When true, all device commands are disabled"
         },
         "showStatusMessages": {
           "type": "boolean",
           "default": true,
-          "description": "When true, show detailed status messages on gate cards after commands"
+          "description": "When true, show detailed status messages on device cards after commands"
         }
       }
     },
@@ -96,17 +96,17 @@
           "type": "object",
           "additionalProperties": true
         },
-        "gates": {
+        "devices": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/gate"
+            "$ref": "#/$defs/device"
           }
         }
       }
     },
-    "gate": {
+    "device": {
       "type": "object",
-      "required": ["id", "name", "driver", "capabilities"],
+      "required": ["id", "name", "driver", "deviceType", "capabilities"],
       "properties": {
         "id": {
           "type": "string",
@@ -120,6 +120,11 @@
           "type": "boolean",
           "default": true
         },
+        "deviceType": {
+          "type": "string",
+          "enum": ["gate", "utility"],
+          "description": "Device type: gate for open/close/stop/toggle, utility for on/off/toggle"
+        },
         "driver": {
           "type": "string",
           "enum": ["gpio", "webhook"]
@@ -128,7 +133,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["open", "close", "stop", "toggle", "state"]
+            "enum": ["open", "close", "stop", "toggle", "on", "off", "state"]
           },
           "minItems": 1,
           "uniqueItems": true
@@ -170,6 +175,18 @@
           "minimum": 0,
           "maximum": 40
         },
+        "onPin": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40,
+          "description": "GPIO pin for turning utility ON"
+        },
+        "offPin": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40,
+          "description": "GPIO pin for turning utility OFF (if different from onPin)"
+        },
         "pulseDurationMs": {
           "type": "integer",
           "minimum": 50,
@@ -182,6 +199,11 @@
           "minimum": 1000,
           "maximum": 120000,
           "description": "Duration to hold the pin active for open/close operations (ms). Used for gates that move while pin is held low/high."
+        },
+        "maintainState": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, the relay stays on until explicitly turned off. If false, uses pulse/hold durations."
         },
         "activeHigh": {
           "type": "boolean",
@@ -201,6 +223,8 @@
             "close": { "type": "string", "format": "uri" },
             "stop": { "type": "string", "format": "uri" },
             "toggle": { "type": "string", "format": "uri" },
+            "on": { "type": "string", "format": "uri" },
+            "off": { "type": "string", "format": "uri" },
             "state": { "type": "string", "format": "uri" }
           }
         },

@@ -1,17 +1,24 @@
-import type { Gate } from '@prisma/client';
+import type { Device } from '@prisma/client';
 import { z } from 'zod';
 import { BaseDriver, type DriverResult } from './base.js';
-import type { GateAction, GpioDriverConfig } from '../config/schema.js';
+import type { DeviceAction, GpioDriverConfig } from '../config/schema.js';
 import { logger } from '../lib/logger.js';
 import { getConfig } from '../config/loader.js';
 
 const gpioConfigSchema = z.object({
+  // Gate pins
   openPin: z.number().int().min(0).max(40).optional(),
   closePin: z.number().int().min(0).max(40).optional(),
   stopPin: z.number().int().min(0).max(40).optional(),
   togglePin: z.number().int().min(0).max(40).optional(),
-  pulseDurationMs: z.number().min(50).max(5000).default(500),
+  // Utility pins
+  onPin: z.number().int().min(0).max(40).optional(),
+  offPin: z.number().int().min(0).max(40).optional(),
+  // Timing
+  pulseDurationMs: z.number().min(50).max(60000).default(500),
   holdDurationMs: z.number().min(1000).max(120000).optional(),
+  // State behavior
+  maintainState: z.boolean().default(false),
   activeHigh: z.boolean().default(false),
 });
 
@@ -43,19 +50,19 @@ async function checkGpioServiceAvailable(): Promise<boolean> {
   return gpioServiceAvailable;
 }
 
-// Track active operations per gate to prevent simultaneous open/close
+// Track active operations per device to prevent simultaneous open/close
 // This is CRITICAL for safety - we must NEVER activate open and close simultaneously
 interface ActiveOperation {
-  action: GateAction;
+  action: DeviceAction;
   pin: number;
   startTime: number;
   abortController: AbortController;
   config: GpioDriverConfig;
 }
-const activeGateOperations: Map<string, ActiveOperation> = new Map();
+const activeDeviceOperations: Map<string, ActiveOperation> = new Map();
 
-// Mutex locks per gate to ensure serialized access
-const gateMutexes: Map<string, Promise<void>> = new Map();
+// Mutex locks per device to ensure serialized access
+const deviceMutexes: Map<string, Promise<void>> = new Map();
 
 interface PulseResult {
   success: boolean;
@@ -126,16 +133,69 @@ async function forceGpioInactive(pin: number, activeHigh: boolean): Promise<void
   }
 }
 
+/**
+ * Set a GPIO pin to a specific state (for maintainState utilities).
+ * The pin will stay in this state until explicitly changed.
+ */
+async function callGpioServiceSet(pin: number, high: boolean): Promise<void> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (GPIO_SERVICE_SECRET) {
+    headers['X-GPIO-Secret'] = GPIO_SERVICE_SECRET;
+  }
+  
+  const response = await fetch(`${GPIO_SERVICE_URL}/set`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ pin, high }),
+  });
+  
+  const result = await response.json() as { success: boolean; error?: string };
+  
+  if (!response.ok || !result.success) {
+    throw new Error(result.error || `GPIO service returned ${response.status}`);
+  }
+  
+  logger.debug({ pin, high, result }, 'GPIO set state via HTTP service');
+}
+
+/**
+ * Read the current state of a GPIO pin.
+ */
+async function callGpioServiceRead(pin: number): Promise<boolean> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (GPIO_SERVICE_SECRET) {
+    headers['X-GPIO-Secret'] = GPIO_SERVICE_SECRET;
+  }
+  
+  const response = await fetch(`${GPIO_SERVICE_URL}/read?pin=${pin}`, {
+    method: 'GET',
+    headers,
+  });
+  
+  const result = await response.json() as { success: boolean; pin: number; high: boolean; error?: string };
+  
+  if (!response.ok || !result.success) {
+    throw new Error(result.error || `GPIO service returned ${response.status}`);
+  }
+  
+  return result.high;
+}
+
 export class GpioDriver extends BaseDriver {
   readonly name = 'gpio';
-  readonly supportedActions: GateAction[] = ['open', 'close', 'stop', 'toggle'];
+  readonly supportedActions: DeviceAction[] = ['open', 'close', 'stop', 'toggle', 'on', 'off'];
 
-  async execute(gate: Gate, action: GateAction): Promise<DriverResult> {
-    const config = gate.driverConfig as unknown as GpioDriverConfig;
+  async execute(device: Device, action: DeviceAction): Promise<DriverResult> {
+    const config = device.driverConfig as unknown as GpioDriverConfig;
 
     // STOP action is special - it interrupts active operations
     if (action === 'stop') {
-      return this.executeStop(gate, config);
+      return this.executeStop(device, config);
+    }
+
+    // OFF action for maintainState utilities - turn off the relay
+    if (action === 'off' && config.maintainState) {
+      return this.executeOff(device, config);
     }
 
     const pin = this.getPinForAction(config, action);
@@ -147,77 +207,79 @@ export class GpioDriver extends BaseDriver {
       };
     }
 
-    // SAFETY CHECK: Prevent simultaneous open/close on the same gate
+    // SAFETY CHECK: Prevent simultaneous open/close on the same device
     // This is CRITICAL - activating both simultaneously causes electrical problems
     if (action === 'open' || action === 'close') {
       const conflictingAction = action === 'open' ? 'close' : 'open';
-      const activeOp = activeGateOperations.get(gate.id);
+      const activeOp = activeDeviceOperations.get(device.id);
       
       if (activeOp && (activeOp.action === 'open' || activeOp.action === 'close')) {
-        const errorMsg = `SAFETY BLOCK: Cannot execute ${action} while ${activeOp.action} is active on gate ${gate.id}. ` +
+        const errorMsg = `SAFETY BLOCK: Cannot execute ${action} while ${activeOp.action} is active on device ${device.id}. ` +
           `Active operation started ${Date.now() - activeOp.startTime}ms ago on pin ${activeOp.pin}. ` +
           `This prevents electrical damage from simultaneous open/close signals.`;
-        logger.error({ gateId: gate.id, action, activeOp }, errorMsg);
+        logger.error({ deviceId: device.id, action, activeOp }, errorMsg);
         return {
           success: false,
-          message: `Cannot ${action} while gate is ${activeOp.action === 'open' ? 'opening' : 'closing'}. Wait for the operation to complete.`,
+          message: `Cannot ${action} while device is ${activeOp.action === 'open' ? 'opening' : 'closing'}. Wait for the operation to complete.`,
         };
       }
     }
 
-    // Use mutex to serialize operations on the same gate
-    return this.withGateMutex(gate.id, async () => {
+    // Use mutex to serialize operations on the same device
+    return this.withDeviceMutex(device.id, async () => {
       // Check if maintenance mode is enabled - force simulation
-      const gatesConfig = getConfig();
-      const isMaintenanceMode = gatesConfig?.settings?.maintenanceMode ?? false;
+      const devicesConfig = getConfig();
+      const isMaintenanceMode = devicesConfig?.settings?.maintenanceMode ?? false;
       
       if (isSimulated || isMaintenanceMode) {
         if (isMaintenanceMode) {
-          logger.info({ gateId: gate.id, action }, 'Maintenance mode enabled - simulating GPIO');
+          logger.info({ deviceId: device.id, action }, 'Maintenance mode enabled - simulating GPIO');
         }
-        return this.simulateGpio(gate, action, pin, config);
+        return this.simulateGpio(device, action, pin, config);
       }
-      return this.executeRealGpio(gate, action, pin, config);
+      return this.executeRealGpio(device, action, pin, config);
     });
   }
 
   /**
    * Execute stop action - interrupts any active operation and optionally pulses stop pin.
-   * 1. Stop any active pulses on this gate's pins via the GPIO service
+   * 1. Stop any active pulses on this device's pins via the GPIO service
    * 2. If an operation is tracked locally, abort it
    * 3. If stopPin is configured, pulse it
    */
-  private async executeStop(gate: Gate, config: GpioDriverConfig): Promise<DriverResult> {
-    const activeOp = activeGateOperations.get(gate.id);
+  private async executeStop(device: Device, config: GpioDriverConfig): Promise<DriverResult> {
+    const activeOp = activeDeviceOperations.get(device.id);
     const stopPin = config.stopPin;
     let stoppedGpioService = false;
     let stoppedLocalOp = false;
     let pulsedStopPin = false;
 
-    // Get all pins for this gate that might need to be stopped
+    // Get all pins for this device that might need to be stopped
     const pinsToStop: number[] = [];
     if (config.openPin !== undefined) pinsToStop.push(config.openPin);
     if (config.closePin !== undefined) pinsToStop.push(config.closePin);
     if (config.togglePin !== undefined) pinsToStop.push(config.togglePin);
+    if (config.onPin !== undefined) pinsToStop.push(config.onPin);
+    if (config.offPin !== undefined) pinsToStop.push(config.offPin);
 
     logger.info(
-      { gateId: gate.id, hasActiveOp: !!activeOp, hasStopPin: !!stopPin, pinsToStop },
+      { deviceId: device.id, hasActiveOp: !!activeOp, hasStopPin: !!stopPin, pinsToStop },
       'Executing stop command'
     );
 
-    // Step 1: Stop any active pulses on the GPIO service for this gate's pins
-    const gatesConfig = getConfig();
-    const isMaintenanceMode = gatesConfig?.settings?.maintenanceMode ?? false;
+    // Step 1: Stop any active pulses on the GPIO service for this device's pins
+    const devicesConfig = getConfig();
+    const isMaintenanceMode = devicesConfig?.settings?.maintenanceMode ?? false;
     const shouldSimulate = isSimulated || isMaintenanceMode;
 
     if (!shouldSimulate && await checkGpioServiceAvailable()) {
       for (const pin of pinsToStop) {
         try {
           await forceGpioInactive(pin, config.activeHigh);
-          logger.info({ gateId: gate.id, pin }, 'Stopped GPIO pin via service');
+          logger.info({ deviceId: device.id, pin }, 'Stopped GPIO pin via service');
           stoppedGpioService = true;
         } catch (err) {
-          logger.warn({ gateId: gate.id, pin, err }, 'Failed to stop GPIO pin');
+          logger.warn({ deviceId: device.id, pin, err }, 'Failed to stop GPIO pin');
         }
       }
     }
@@ -225,18 +287,18 @@ export class GpioDriver extends BaseDriver {
     // Step 2: If there's a locally tracked operation, abort it
     if (activeOp) {
       logger.info(
-        { gateId: gate.id, activeAction: activeOp.action, activePin: activeOp.pin },
+        { deviceId: device.id, activeAction: activeOp.action, activePin: activeOp.pin },
         'Aborting locally tracked operation'
       );
       activeOp.abortController.abort();
-      activeGateOperations.delete(gate.id);
+      activeDeviceOperations.delete(device.id);
       stoppedLocalOp = true;
     }
 
     // Step 3: If stopPin is configured, pulse it
     if (stopPin !== undefined) {
       logger.info(
-        { gateId: gate.id, stopPin, pulseDurationMs: config.pulseDurationMs, simulated: shouldSimulate },
+        { deviceId: device.id, stopPin, pulseDurationMs: config.pulseDurationMs, simulated: shouldSimulate },
         'Pulsing stop pin'
       );
 
@@ -244,20 +306,20 @@ export class GpioDriver extends BaseDriver {
         if (shouldSimulate) {
           // Simulate the stop pin pulse
           await new Promise((resolve) => setTimeout(resolve, config.pulseDurationMs));
-          logger.info({ gateId: gate.id, stopPin, simulated: true, maintenanceMode: isMaintenanceMode }, 'Simulated stop pin pulse');
+          logger.info({ deviceId: device.id, stopPin, simulated: true, maintenanceMode: isMaintenanceMode }, 'Simulated stop pin pulse');
         } else if (await checkGpioServiceAvailable()) {
           // Use GPIO service to pulse the stop pin
-          await callGpioServicePulse(stopPin, config.pulseDurationMs, config.activeHigh);
-          logger.info({ gateId: gate.id, stopPin, durationMs: config.pulseDurationMs }, 'Pulsed stop pin via GPIO service');
+          await callGpioServicePulse(stopPin, config.pulseDurationMs ?? 500, config.activeHigh);
+          logger.info({ deviceId: device.id, stopPin, durationMs: config.pulseDurationMs }, 'Pulsed stop pin via GPIO service');
         } else {
           // Simulate if GPIO service not available
           await new Promise((resolve) => setTimeout(resolve, config.pulseDurationMs));
-          logger.info({ gateId: gate.id, stopPin, simulated: true, reason: 'GPIO service not available' }, 'Simulated stop pin pulse');
+          logger.info({ deviceId: device.id, stopPin, simulated: true, reason: 'GPIO service not available' }, 'Simulated stop pin pulse');
         }
         pulsedStopPin = true;
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-        logger.error({ gateId: gate.id, stopPin, err }, 'Failed to pulse stop pin');
+        logger.error({ deviceId: device.id, stopPin, err }, 'Failed to pulse stop pin');
         return {
           success: false,
           message: `Failed to pulse stop pin: ${errorMessage}`,
@@ -293,12 +355,47 @@ export class GpioDriver extends BaseDriver {
   }
 
   /**
-   * Serialize access to a gate using a mutex pattern.
+   * Execute OFF action for maintainState utilities - sets pin to inactive.
+   */
+  private async executeOff(device: Device, config: GpioDriverConfig): Promise<DriverResult> {
+    // For maintainState utilities, 'off' sets the pin to inactive
+    const pin = config.offPin ?? config.onPin;
+    if (pin === undefined) {
+      return { success: false, message: 'No on/off pin configured' };
+    }
+
+    const devicesConfig = getConfig();
+    const isMaintenanceMode = devicesConfig?.settings?.maintenanceMode ?? false;
+    const shouldSimulate = isSimulated || isMaintenanceMode;
+
+    logger.info({ deviceId: device.id, pin, action: 'off' }, 'Executing OFF (set inactive)');
+
+    try {
+      if (shouldSimulate) {
+        logger.info({ deviceId: device.id, pin, simulated: true }, 'Simulated OFF');
+      } else if (await checkGpioServiceAvailable()) {
+        await callGpioServiceSet(pin, !config.activeHigh); // Set to inactive state
+        logger.info({ deviceId: device.id, pin }, 'Set GPIO to inactive via service');
+      }
+      return {
+        success: true,
+        message: `Device turned off (pin ${pin} set inactive)`,
+        data: { pin, action: 'off', state: 'off' },
+      };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      logger.error({ deviceId: device.id, pin, err }, 'Failed to turn off device');
+      return { success: false, message: `Failed to turn off: ${errorMessage}` };
+    }
+  }
+
+  /**
+   * Serialize access to a device using a mutex pattern.
    * This ensures operations complete before another starts.
    */
-  private async withGateMutex<T>(gateId: string, fn: () => Promise<T>): Promise<T> {
-    // Wait for any existing operation on this gate
-    const existingMutex = gateMutexes.get(gateId);
+  private async withDeviceMutex<T>(deviceId: string, fn: () => Promise<T>): Promise<T> {
+    // Wait for any existing operation on this device
+    const existingMutex = deviceMutexes.get(deviceId);
     if (existingMutex) {
       await existingMutex.catch(() => {}); // Ignore errors from previous operation
     }
@@ -306,19 +403,19 @@ export class GpioDriver extends BaseDriver {
     // Create new mutex for this operation
     let resolve: () => void;
     const mutex = new Promise<void>((r) => { resolve = r; });
-    gateMutexes.set(gateId, mutex);
+    deviceMutexes.set(deviceId, mutex);
 
     try {
       return await fn();
     } finally {
       resolve!();
-      if (gateMutexes.get(gateId) === mutex) {
-        gateMutexes.delete(gateId);
+      if (deviceMutexes.get(deviceId) === mutex) {
+        deviceMutexes.delete(deviceId);
       }
     }
   }
 
-  private getPinForAction(config: GpioDriverConfig, action: GateAction): number | null {
+  private getPinForAction(config: GpioDriverConfig, action: DeviceAction): number | null {
     switch (action) {
       case 'open':
         return config.openPin ?? null;
@@ -328,6 +425,10 @@ export class GpioDriver extends BaseDriver {
         return config.stopPin ?? null;
       case 'toggle':
         return config.togglePin ?? null;
+      case 'on':
+        return config.onPin ?? null;
+      case 'off':
+        return config.offPin ?? config.onPin ?? null; // Fall back to onPin for single-pin utilities
       default:
         return null;
     }
@@ -336,18 +437,23 @@ export class GpioDriver extends BaseDriver {
   /**
    * Get the duration to hold the pin active.
    * For open/close operations, use holdDurationMs if configured.
-   * For toggle/stop operations, use pulseDurationMs.
+   * For toggle/stop/on/off operations, use pulseDurationMs.
+   * For maintainState utilities, returns 0 (pin stays on until off command).
    */
-  private getActiveDuration(config: GpioDriverConfig, action: GateAction): number {
+  private getActiveDuration(config: GpioDriverConfig, action: DeviceAction): number {
+    // maintainState utilities don't pulse - they stay on
+    if (config.maintainState && (action === 'on' || action === 'toggle')) {
+      return 0; // Special: 0 means set and hold
+    }
     if ((action === 'open' || action === 'close') && config.holdDurationMs) {
       return config.holdDurationMs;
     }
-    return config.pulseDurationMs;
+    return config.pulseDurationMs ?? 500;
   }
 
   private async simulateGpio(
-    gate: Gate,
-    action: GateAction,
+    device: Device,
+    action: DeviceAction,
     pin: number,
     config: GpioDriverConfig
   ): Promise<DriverResult> {
@@ -356,12 +462,13 @@ export class GpioDriver extends BaseDriver {
     
     logger.info(
       {
-        gateId: gate.id,
+        deviceId: device.id,
         action,
         pin,
         durationMs: duration,
         pulseDurationMs: config.pulseDurationMs,
         holdDurationMs: config.holdDurationMs,
+        maintainState: config.maintainState,
         activeHigh: config.activeHigh,
         simulated: true,
       },
@@ -370,7 +477,7 @@ export class GpioDriver extends BaseDriver {
 
     // Track active operation for safety checks (with abort controller for stop)
     if (action === 'open' || action === 'close') {
-      activeGateOperations.set(gate.id, {
+      activeDeviceOperations.set(device.id, {
         action,
         pin,
         startTime: Date.now(),
@@ -383,10 +490,10 @@ export class GpioDriver extends BaseDriver {
       if (duration > 1000) {
         // Set a timer to clear the operation tracking after the duration
         setTimeout(() => {
-          const currentOp = activeGateOperations.get(gate.id);
+          const currentOp = activeDeviceOperations.get(device.id);
           if (currentOp && currentOp.pin === pin && currentOp.action === action && !currentOp.abortController.signal.aborted) {
-            activeGateOperations.delete(gate.id);
-            logger.debug({ gateId: gate.id, action }, 'Cleared simulated GPIO operation tracking');
+            activeDeviceOperations.delete(device.id);
+            logger.debug({ deviceId: device.id, action }, 'Cleared simulated GPIO operation tracking');
           }
         }, duration);
 
@@ -415,7 +522,7 @@ export class GpioDriver extends BaseDriver {
       };
     } catch (err) {
       if (abortController.signal.aborted) {
-        logger.info({ gateId: gate.id, action }, 'GPIO operation was stopped');
+        logger.info({ deviceId: device.id, action }, 'GPIO operation was stopped');
         return {
           success: true,
           message: `Operation ${action} was stopped`,
@@ -426,14 +533,44 @@ export class GpioDriver extends BaseDriver {
     } finally {
       // Clear active operation tracking for short operations
       if ((action === 'open' || action === 'close') && duration <= 1000) {
-        activeGateOperations.delete(gate.id);
+        activeDeviceOperations.delete(device.id);
       }
     }
   }
 
+  // Handle maintainState utilities - set pin and keep it on
+  private async executeMaintainState(
+    device: Device,
+    action: DeviceAction,
+    pin: number,
+    config: GpioDriverConfig,
+    simulated: boolean
+  ): Promise<DriverResult> {
+    const activeState = config.activeHigh;
+    
+    logger.info(
+      { deviceId: device.id, action, pin, maintainState: true, simulated },
+      'Executing maintainState GPIO operation'
+    );
+
+    try {
+      if (!simulated && await checkGpioServiceAvailable()) {
+        await callGpioServiceSet(pin, activeState);
+      }
+      return {
+        success: true,
+        message: `Device turned on (pin ${pin} set ${activeState ? 'high' : 'low'})`,
+        data: { pin, action, state: 'on', maintainState: true, simulated },
+      };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      return { success: false, message: `Failed to set GPIO: ${errorMessage}` };
+    }
+  }
+
   private async executeRealGpio(
-    gate: Gate,
-    action: GateAction,
+    device: Device,
+    action: DeviceAction,
     pin: number,
     config: GpioDriverConfig
   ): Promise<DriverResult> {
@@ -446,13 +583,18 @@ export class GpioDriver extends BaseDriver {
       
       if (!gpioServiceReachable) {
         // Fall back to simulation if GPIO service not available
-        logger.warn({ gateId: gate.id }, 'GPIO service not available, falling back to simulation');
-        return this.simulateGpio(gate, action, pin, config);
+        logger.warn({ deviceId: device.id }, 'GPIO service not available, falling back to simulation');
+        return this.simulateGpio(device, action, pin, config);
+      }
+
+      // Handle maintainState utilities
+      if (config.maintainState && (action === 'on' || action === 'toggle')) {
+        return this.executeMaintainState(device, action, pin, config, false);
       }
 
       logger.info(
         { 
-          gateId: gate.id, 
+          deviceId: device.id, 
           action, 
           pin, 
           durationMs: duration,
@@ -465,7 +607,7 @@ export class GpioDriver extends BaseDriver {
 
       // Track active operation for safety checks (CRITICAL for open/close mutual exclusion)
       if (action === 'open' || action === 'close') {
-        activeGateOperations.set(gate.id, {
+        activeDeviceOperations.set(device.id, {
           action,
           pin,
           startTime: Date.now(),
@@ -482,16 +624,16 @@ export class GpioDriver extends BaseDriver {
         // Keep tracking the operation and set a cleanup timer
         if (result.async) {
           logger.info(
-            { gateId: gate.id, action, pin, durationMs: duration },
+            { deviceId: device.id, action, pin, durationMs: duration },
             'GPIO operation running asynchronously'
           );
           
           // Set a timer to clear the active operation after the expected duration
           setTimeout(() => {
-            const currentOp = activeGateOperations.get(gate.id);
+            const currentOp = activeDeviceOperations.get(device.id);
             if (currentOp && currentOp.pin === pin && currentOp.action === action) {
-              activeGateOperations.delete(gate.id);
-              logger.debug({ gateId: gate.id, action }, 'Cleared async GPIO operation tracking');
+              activeDeviceOperations.delete(device.id);
+              logger.debug({ deviceId: device.id, action }, 'Cleared async GPIO operation tracking');
             }
           }, duration + 500); // Add 500ms buffer
           
@@ -503,13 +645,13 @@ export class GpioDriver extends BaseDriver {
         }
         
         logger.info(
-          { gateId: gate.id, action, pin, durationMs: duration },
+          { deviceId: device.id, action, pin, durationMs: duration },
           'GPIO operation completed'
         );
 
         // Clear tracking for sync operations
         if (action === 'open' || action === 'close') {
-          activeGateOperations.delete(gate.id);
+          activeDeviceOperations.delete(device.id);
         }
 
         return {
@@ -520,10 +662,10 @@ export class GpioDriver extends BaseDriver {
       } catch (err) {
         // Clear active operation on error
         if (action === 'open' || action === 'close') {
-          activeGateOperations.delete(gate.id);
+          activeDeviceOperations.delete(device.id);
         }
         if (abortController.signal.aborted) {
-          logger.info({ gateId: gate.id, action }, 'GPIO operation was stopped');
+          logger.info({ deviceId: device.id, action }, 'GPIO operation was stopped');
           return {
             success: true,
             message: `Operation ${action} was stopped`,
@@ -535,10 +677,10 @@ export class GpioDriver extends BaseDriver {
     } catch (err) {
       // Clear active operation on error
       if (action === 'open' || action === 'close') {
-        activeGateOperations.delete(gate.id);
+        activeDeviceOperations.delete(device.id);
       }
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      logger.error({ gateId: gate.id, action, pin, err }, 'GPIO execution failed');
+      logger.error({ deviceId: device.id, action, pin, err }, 'GPIO execution failed');
       return {
         success: false,
         message: `GPIO execution failed: ${errorMessage}`,
@@ -558,7 +700,7 @@ export class GpioDriver extends BaseDriver {
 
     // Must have at least one pin configured
     const parsed = result.data;
-    if (!parsed.openPin && !parsed.closePin && !parsed.stopPin && !parsed.togglePin) {
+    if (!parsed.openPin && !parsed.closePin && !parsed.stopPin && !parsed.togglePin && !parsed.onPin && !parsed.offPin) {
       return {
         valid: false,
         errors: ['At least one action pin must be configured'],
@@ -572,15 +714,15 @@ export class GpioDriver extends BaseDriver {
 export const gpioDriver = new GpioDriver();
 
 /**
- * Get the status of all active gate operations.
- * Returns a map of gateId -> operation info (action, startTime, estimatedEndTime).
+ * Get the status of all active device operations.
+ * Returns a map of deviceId -> operation info (action, startTime, estimatedEndTime).
  */
-export function getActiveGateOperations(): Map<string, { action: GateAction; startTime: number; estimatedEndTime: number }> {
-  const result = new Map<string, { action: GateAction; startTime: number; estimatedEndTime: number }>();
+export function getActiveDeviceOperations(): Map<string, { action: DeviceAction; startTime: number; estimatedEndTime: number }> {
+  const result = new Map<string, { action: DeviceAction; startTime: number; estimatedEndTime: number }>();
   
-  for (const [gateId, op] of activeGateOperations) {
-    const duration = op.config.holdDurationMs ?? op.config.pulseDurationMs;
-    result.set(gateId, {
+  for (const [deviceId, op] of activeDeviceOperations) {
+    const duration = op.config.holdDurationMs ?? op.config.pulseDurationMs ?? 500;
+    result.set(deviceId, {
       action: op.action,
       startTime: op.startTime,
       estimatedEndTime: op.startTime + duration,
@@ -589,3 +731,6 @@ export function getActiveGateOperations(): Map<string, { action: GateAction; sta
   
   return result;
 }
+
+// Legacy export alias
+export const getActiveGateOperations = getActiveDeviceOperations;

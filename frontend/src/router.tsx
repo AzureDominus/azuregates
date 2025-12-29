@@ -51,11 +51,11 @@ const dashboardRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard }))),
 });
 
-// Gate control with dynamic param
-const gateControlRoute = createRoute({
+// Device control with dynamic param
+const deviceControlRoute = createRoute({
   getParentRoute: () => layoutRoute,
-  path: '/gates/$gateId',
-  component: lazyRouteComponent(() => import('./pages/GateControl').then(m => ({ default: m.GateControl }))),
+  path: '/devices/$deviceId',
+  component: lazyRouteComponent(() => import('./pages/GateControl').then(m => ({ default: m.DeviceControl }))),
 });
 
 // Admin routes - lazy loaded
@@ -91,7 +91,7 @@ const routeTree = rootRoute.addChildren([
   accountDisabledRoute,
   layoutRoute.addChildren([
     dashboardRoute,
-    gateControlRoute,
+    deviceControlRoute,
     invitesRoute,
     adminRoute,
     settingsRoute,
