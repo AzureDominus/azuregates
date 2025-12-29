@@ -678,6 +678,28 @@ export function Settings() {
                 Stay
               </Button>
               <Button
+                onClick={() => {
+                  try {
+                    const parsed = editorMode === 'yaml' 
+                      ? parse(yamlContent) as DevicesConfig 
+                      : localConfig;
+                    if (parsed) {
+                      saveMutation.mutate(parsed, {
+                        onSuccess: () => proceed(),
+                      });
+                    }
+                  } catch {
+                    // If parse fails, just stay on page
+                    reset();
+                  }
+                }}
+                variant="primary"
+                className="flex-1"
+                disabled={saveMutation.isPending || !!parseError}
+              >
+                {saveMutation.isPending ? 'Saving...' : 'Save & Continue'}
+              </Button>
+              <Button
                 onClick={proceed}
                 variant="danger"
                 className="flex-1"

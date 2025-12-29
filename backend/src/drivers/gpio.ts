@@ -167,18 +167,30 @@ async function callGpioServiceRead(pin: number): Promise<boolean> {
     headers['X-GPIO-Secret'] = GPIO_SERVICE_SECRET;
   }
   
-  const response = await fetch(`${GPIO_SERVICE_URL}/read?pin=${pin}`, {
+  const response = await fetch(`${GPIO_SERVICE_URL}/read?pins=${pin}`, {
     method: 'GET',
     headers,
   });
   
-  const result = await response.json() as { success: boolean; pin: number; high: boolean; error?: string };
+  const result = await response.json() as { 
+    success: boolean; 
+    pins?: Record<string, { state: number; high: boolean; low: boolean; tracked: boolean; error?: string }>;
+    error?: string;
+  };
   
   if (!response.ok || !result.success) {
     throw new Error(result.error || `GPIO service returned ${response.status}`);
   }
   
-  return result.high;
+  const pinData = result.pins?.[pin.toString()];
+  if (!pinData) {
+    throw new Error(`No data returned for pin ${pin}`);
+  }
+  if (pinData.error) {
+    throw new Error(pinData.error);
+  }
+  
+  return pinData.high;
 }
 
 export class GpioDriver extends BaseDriver {
