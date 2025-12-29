@@ -135,8 +135,9 @@
             "type": "string",
             "enum": ["open", "close", "stop", "toggle", "on", "off", "state"]
           },
-          "minItems": 1,
-          "uniqueItems": true
+          "minItems": 0,
+          "uniqueItems": true,
+          "description": "Actions this device supports. For maintainState utilities, can be empty (on/off implicit)"
         },
         "config": {
           "oneOf": [
