@@ -85,6 +85,13 @@ export interface HealthStatus {
   checks?: Record<string, { status: string; latencyMs?: number; error?: string }>;
 }
 
+export interface DeviceState {
+  deviceId: string;
+  isOn: boolean;
+  pin?: number;
+  simulated?: boolean;
+}
+
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     ...options?.headers as Record<string, string>,
@@ -132,6 +139,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ action }),
     }),
+
+  // Device State (for maintainState utilities)
+  getDeviceState: (deviceId: string) =>
+    fetchJson<DeviceState>(`/devices/${deviceId}/state`),
 
   // Audit logs
   getAuditLogs: (params?: { deviceId?: string; limit?: number; offset?: number }) => {

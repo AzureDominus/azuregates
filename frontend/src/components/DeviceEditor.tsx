@@ -215,50 +215,35 @@ export function DeviceEditor({ device, onSave, onClose }: DeviceEditorProps) {
               </div>
             )}
 
-            {/* Utility pins: on/off */}
+            {/* Utility pins: single control pin for on/off/toggle */}
             {isUtility && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">On Pin</label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    min="0"
-                    max="40"
-                    value={getConfig().onPin ?? ''}
-                    onChange={(e) => updateConfig('onPin', e.target.value ? parseInt(e.target.value) : undefined)}
-                    onKeyDown={(e) => {
-                      if (['e', 'E', '+', '-', '.'].includes(e.key)) {
-                        e.preventDefault();
-                      }
-                    }}
-                    placeholder="GPIO #"
-                    className={`w-full px-3 py-2 bg-surfaceHighlight border rounded-lg text-white placeholder-gray-600 font-mono focus:outline-none focus:ring-1 ${
-                      errors.onPin ? 'border-danger/50 focus:ring-danger/50' : 'border-white/10 focus:border-secondary/50 focus:ring-secondary/50'
-                    }`}
-                  />
-                  {errors.onPin && <p className="text-xs text-danger mt-1">{errors.onPin}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Off Pin</label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    min="0"
-                    max="40"
-                    value={getConfig().offPin ?? ''}
-                    onChange={(e) => updateConfig('offPin', e.target.value ? parseInt(e.target.value) : undefined)}
-                    onKeyDown={(e) => {
-                      if (['e', 'E', '+', '-', '.'].includes(e.key)) {
-                        e.preventDefault();
-                      }
-                    }}
-                    placeholder="GPIO # (optional)"
-                    className="w-full px-3 py-2 bg-surfaceHighlight border border-white/10 rounded-lg text-white placeholder-gray-600 font-mono focus:outline-none focus:ring-1 focus:border-secondary/50 focus:ring-secondary/50"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Control Pin</label>
+                <p className="text-xs text-gray-600 mb-2">Single GPIO pin used for on, off, and toggle actions</p>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  min="0"
+                  max="40"
+                  value={getConfig().onPin ?? ''}
+                  onChange={(e) => {
+                    const pin = e.target.value ? parseInt(e.target.value) : undefined;
+                    // Set both onPin and offPin to the same value for utilities
+                    updateConfig('onPin', pin);
+                    updateConfig('offPin', pin);
+                  }}
+                  onKeyDown={(e) => {
+                    if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
+                  placeholder="GPIO #"
+                  className={`w-full px-3 py-2 bg-surfaceHighlight border rounded-lg text-white placeholder-gray-600 font-mono focus:outline-none focus:ring-1 ${
+                    errors.onPin || errors.pins ? 'border-danger/50 focus:ring-danger/50' : 'border-white/10 focus:border-secondary/50 focus:ring-secondary/50'
+                  }`}
+                />
+                {errors.onPin && <p className="text-xs text-danger mt-1">{errors.onPin}</p>}
               </div>
             )}
 

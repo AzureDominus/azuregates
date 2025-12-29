@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Device, type DeviceAction, type DeviceStatus } from '../lib/api';
 import { StatusLight, ActionButton } from './ui';
 
@@ -15,6 +15,21 @@ export function DeviceCard({ device, activeStatus, showStatusMessages = true, ma
   const queryClient = useQueryClient();
   const [lastResult, setLastResult] = useState<{ success: boolean; message?: string } | null>(null);
   const [remainingMs, setRemainingMs] = useState<number>(0);
+
+  const isDisabled = !device.enabled;
+  const capabilities = device.capabilities as DeviceAction[];
+  const isUtility = device.deviceType === 'utility';
+  const isMaintainState = isUtility && (device.driverConfig as any)?.maintainState === true;
+
+  // Query device state for maintainState utilities
+  const { data: deviceState, refetch: refetchState } = useQuery({
+    queryKey: ['device-state', device.id],
+    queryFn: () => api.getDeviceState(device.id),
+    enabled: isMaintainState && !isDisabled,
+    refetchInterval: 30000, // Refresh every 30s
+    retry: false,
+    staleTime: 10000,
+  });
 
   // Update remaining time every 100ms when there's an active operation
   useEffect(() => {
@@ -40,6 +55,10 @@ export function DeviceCard({ device, activeStatus, showStatusMessages = true, ma
       setLastResult({ success: true, message: result.result?.message });
       setTimeout(() => setLastResult(null), 3000);
       queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
+      // Refetch device state after command
+      if (isMaintainState) {
+        setTimeout(() => refetchState(), 500);
+      }
     },
     onError: (error) => {
       setLastResult({ success: false, message: error instanceof Error ? error.message : 'Failed' });
@@ -53,10 +72,13 @@ export function DeviceCard({ device, activeStatus, showStatusMessages = true, ma
     commandMutation.mutate({ deviceId: device.id, action });
   };
 
-  const isDisabled = !device.enabled;
-  const capabilities = device.capabilities as DeviceAction[];
+  const handleToggleSwitch = () => {
+    if (commandMutation.isPending) return;
+    const newAction = deviceState?.isOn ? 'off' : 'on';
+    commandMutation.mutate({ deviceId: device.id, action: newAction });
+  };
+
   const isActive = !!activeStatus && remainingMs > 0;
-  const isUtility = device.deviceType === 'utility';
   
   // Calculate progress (100% = just started, 0% = done)
   const totalDuration = activeStatus ? activeStatus.estimatedEndTime - activeStatus.startTime : 0;
@@ -122,27 +144,80 @@ export function DeviceCard({ device, activeStatus, showStatusMessages = true, ma
         </div>
 
         {/* Controls Grid */}
-        <div className="grid grid-cols-2 gap-3">
-          {capabilities.filter((a): a is Exclude<DeviceAction, 'state'> => a !== 'state').map((action) => {
-            const isStop = action === 'stop';
-            const isThisActionActive = isActive && activeStatus?.action === action;
-            // Disable non-stop buttons while an action is in progress (either mutation pending or active status)
-            const shouldDisable = isDisabled || (!isStop && (commandMutation.isPending || isActive));
+        {isMaintainState ? (
+          // Toggle Switch for maintainState utilities
+          <div className="flex flex-col items-center gap-4">
+            {/* Power Switch */}
+            <button
+              onClick={handleToggleSwitch}
+              disabled={isDisabled || commandMutation.isPending}
+              className={`relative w-24 h-12 rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-secondary/50 ${
+                isDisabled 
+                  ? 'bg-surfaceHighlight cursor-not-allowed opacity-50'
+                  : deviceState?.isOn
+                    ? 'bg-gradient-to-r from-success/80 to-success shadow-[0_0_20px_rgba(0,255,157,0.3)]'
+                    : 'bg-surfaceHighlight hover:bg-surface'
+              }`}
+            >
+              {/* Track background glow */}
+              {deviceState?.isOn && !isDisabled && (
+                <div className="absolute inset-0 rounded-full bg-success/20 blur-md" />
+              )}
+              
+              {/* Thumb */}
+              <div 
+                className={`absolute top-1 w-10 h-10 rounded-full bg-white shadow-lg transition-all duration-300 flex items-center justify-center ${
+                  deviceState?.isOn ? 'left-[calc(100%-2.75rem)]' : 'left-1'
+                }`}
+              >
+                {commandMutation.isPending ? (
+                  <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <div className={`w-3 h-3 rounded-full transition-colors ${
+                    deviceState?.isOn ? 'bg-success' : 'bg-gray-400'
+                  }`} />
+                )}
+              </div>
+            </button>
+            
+            {/* State Label */}
+            <div className="flex items-center gap-2">
+              <span className={`text-sm font-mono uppercase tracking-wider transition-colors ${
+                deviceState?.isOn ? 'text-success' : 'text-gray-500'
+              }`}>
+                {deviceState?.isOn ? 'On' : 'Off'}
+              </span>
+              {deviceState?.simulated && (
+                <span className="text-[9px] font-mono text-yellow-500 bg-yellow-900/30 border border-yellow-700/50 px-1.5 py-0.5 rounded uppercase">
+                  Simulated
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          // Regular action buttons for gates and non-maintainState utilities
+          <div className="grid grid-cols-2 gap-3">
+            {capabilities.filter((a): a is Exclude<DeviceAction, 'state'> => a !== 'state').map((action) => {
+              const isStop = action === 'stop';
+              const isThisActionActive = isActive && activeStatus?.action === action;
+              // Disable non-stop buttons while an action is in progress (either mutation pending or active status)
+              const shouldDisable = isDisabled || (!isStop && (commandMutation.isPending || isActive));
 
-            return (
-              <ActionButton
-                key={action}
-                action={action}
-                onClick={() => handleAction(action)}
-                disabled={shouldDisable}
-                loading={commandMutation.isPending && commandMutation.variables?.action === action && !isActive}
-                fullWidth={isStop}
-                isActive={isThisActionActive}
-                progress={isThisActionActive ? progress : undefined}
-              />
-            );
-          })}
-        </div>
+              return (
+                <ActionButton
+                  key={action}
+                  action={action}
+                  onClick={() => handleAction(action)}
+                  disabled={shouldDisable}
+                  loading={commandMutation.isPending && commandMutation.variables?.action === action && !isActive}
+                  fullWidth={isStop}
+                  isActive={isThisActionActive}
+                  progress={isThisActionActive ? progress : undefined}
+                />
+              );
+            })}
+          </div>
+        )}
 
         {/* Feedback Message - always show errors, respect setting for success */}
         {lastResult && (showStatusMessages || !lastResult.success) && (
