@@ -6,7 +6,7 @@ import { gpioDriver } from '../drivers/gpio.js';
 import { checkPermission, getAccessibleDeviceIds, getAccessibleDeviceIdsForGuest } from '../permissions/checker.js';
 import { logAudit } from '../audit/logger.js';
 import { getCurrentUser, authPreHandler, activatedPreHandler, type SessionUser } from '../auth/session.js';
-import { broadcastDeviceCommand, broadcastDeviceStatus } from './events.js';
+import { broadcastDeviceCommand, broadcastDeviceStatus, broadcastDeviceState } from './events.js';
 import { validateGuestInvite } from '../auth/guest.js';
 
 /**
@@ -593,6 +593,11 @@ export async function gatesRoutes(app: FastifyInstance) {
         // Broadcast to all connected SSE clients
         broadcastDeviceCommand(device.id, device.name, action, 'success', userId);
         broadcastDeviceStatus();
+
+        // For state-changing actions on maintainState utilities, broadcast the new state
+        if (['on', 'off', 'toggle'].includes(action)) {
+          await broadcastDeviceState(device.id);
+        }
 
         return reply.send({
           success: true,

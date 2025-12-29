@@ -2,6 +2,8 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authPreHandler, getCurrentUser } from '../auth/session.js';
 import { logger } from '../lib/logger.js';
 import { getDeviceStatus } from '../drivers/executor.js';
+import { gpioDriver } from '../drivers/gpio.js';
+import { prisma } from '../lib/prisma.js';
 
 // Store connected SSE clients
 interface SSEClient {
@@ -73,6 +75,28 @@ export function broadcastDeviceStatus(): void {
 
 // Legacy alias
 export const broadcastGateStatus = broadcastDeviceStatus;
+
+/**
+ * Broadcast device state update for a maintainState utility device.
+ */
+export async function broadcastDeviceState(deviceId: string): Promise<void> {
+  try {
+    const device = await prisma.device.findUnique({ where: { id: deviceId } });
+    if (!device || device.driverType !== 'gpio') return;
+    
+    const state = await gpioDriver.readState(device);
+    if (!state) return;
+    
+    broadcastEvent('device-state', {
+      deviceId,
+      isOn: state.isOn,
+      pin: state.pin,
+      simulated: state.simulated,
+    });
+  } catch (err) {
+    logger.debug({ deviceId, err }, 'Failed to broadcast device state');
+  }
+}
 
 export async function eventsRoutes(app: FastifyInstance) {
   // SSE endpoint - requires authentication

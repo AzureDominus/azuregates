@@ -9,7 +9,7 @@ import { StatusLight, Badge } from '../components/ui';
 
 export function Dashboard() {
   const { isReady } = useRequireAuth();
-  const { connected, getDeviceActiveStatus } = useGateEvents();
+  const { connected, getDeviceActiveStatus, getDeviceState } = useGateEvents();
   
   const { data: locations, isLoading, error } = useQuery({
     queryKey: ['locations'],
@@ -131,6 +131,7 @@ export function Dashboard() {
                     <DeviceCard 
                       device={device} 
                       activeStatus={getDeviceActiveStatus(device.id)}
+                      deviceState={getDeviceState(device.id)}
                       showStatusMessages={showStatusMessages}
                       maintenanceMode={maintenanceMode}
                       gpioHealthy={gpioHealthy}

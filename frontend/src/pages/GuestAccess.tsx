@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { DeviceCard } from '../components/DeviceCard';
 import { Badge } from '../components/ui';
+import { useGateEvents } from '../lib/useGateEvents';
 
 export function GuestAccess() {
   const search = useSearch({ strict: false }) as { token?: string };
@@ -48,6 +49,8 @@ export function GuestAccess() {
 
   const showStatusMessages = config?.settings?.showStatusMessages ?? true;
   const maintenanceMode = config?.settings?.maintenanceMode ?? false;
+  
+  const { getDeviceState } = useGateEvents();
 
   // Redeem token on mount - only attempt once
   useEffect(() => {
@@ -203,6 +206,7 @@ export function GuestAccess() {
                   >
                     <DeviceCard 
                       device={device} 
+                      deviceState={getDeviceState(device.id)}
                       showStatusMessages={showStatusMessages}
                       maintenanceMode={maintenanceMode}
                     />

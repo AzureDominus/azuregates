@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type Device, type DeviceAction, type DeviceStatus } from '../lib/api';
+import { api, type Device, type DeviceAction, type DeviceStatus, type DeviceState } from '../lib/api';
 import { StatusLight, ActionButton } from './ui';
 
 interface DeviceCardProps {
   device: Device;
   activeStatus?: DeviceStatus;
+  deviceState?: DeviceState; // From SSE updates
   showStatusMessages?: boolean;
   maintenanceMode?: boolean;
   gpioHealthy?: boolean;
 }
 
-export function DeviceCard({ device, activeStatus, showStatusMessages = true, maintenanceMode = false, gpioHealthy = true }: DeviceCardProps) {
+export function DeviceCard({ device, activeStatus, deviceState: sseDeviceState, showStatusMessages = true, maintenanceMode = false, gpioHealthy = true }: DeviceCardProps) {
   const queryClient = useQueryClient();
   const [lastResult, setLastResult] = useState<{ success: boolean; message?: string } | null>(null);
   const [remainingMs, setRemainingMs] = useState<number>(0);
@@ -21,15 +22,17 @@ export function DeviceCard({ device, activeStatus, showStatusMessages = true, ma
   const isUtility = device.deviceType === 'utility';
   const isMaintainState = isUtility && (device.driverConfig as any)?.maintainState === true;
 
-  // Query device state for maintainState utilities
-  const { data: deviceState, refetch: refetchState } = useQuery({
+  // Query device state initially for maintainState utilities (SSE will update it thereafter)
+  const { data: fetchedState } = useQuery({
     queryKey: ['device-state', device.id],
     queryFn: () => api.getDeviceState(device.id),
     enabled: isMaintainState && !isDisabled,
-    refetchInterval: 30000, // Refresh every 30s
+    staleTime: Infinity, // SSE will keep it fresh, don't refetch automatically
     retry: false,
-    staleTime: 10000,
   });
+
+  // Use SSE state if available, otherwise use fetched state
+  const deviceState = sseDeviceState ?? fetchedState;
 
   // Update remaining time every 100ms when there's an active operation
   useEffect(() => {
@@ -55,10 +58,7 @@ export function DeviceCard({ device, activeStatus, showStatusMessages = true, ma
       setLastResult({ success: true, message: result.result?.message });
       setTimeout(() => setLastResult(null), 3000);
       queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
-      // Refetch device state after command
-      if (isMaintainState) {
-        setTimeout(() => refetchState(), 500);
-      }
+      // SSE will broadcast device state updates, no need to refetch
     },
     onError: (error) => {
       setLastResult({ success: false, message: error instanceof Error ? error.message : 'Failed' });

@@ -1,12 +1,13 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { DeviceStatus, DeviceCommandEvent } from './api';
+import type { DeviceStatus, DeviceCommandEvent, DeviceState } from './api';
 
 const API_BASE = '/api';
 
 interface SSEState {
   connected: boolean;
   deviceStatus: DeviceStatus[];
+  deviceStates: Map<string, DeviceState>;
   lastCommand: DeviceCommandEvent | null;
 }
 
@@ -21,6 +22,7 @@ export function useGateEvents() {
   const [state, setState] = useState<SSEState>({
     connected: false,
     deviceStatus: [],
+    deviceStates: new Map(),
     lastCommand: null,
   });
 
@@ -66,6 +68,19 @@ export function useGateEvents() {
         deviceStatus: data,
       }));
       console.log('[SSE] Device status:', data);
+    });
+
+    es.addEventListener('device-state', (event) => {
+      const data: DeviceState = JSON.parse((event as MessageEvent).data);
+      setState((prev) => {
+        const newStates = new Map(prev.deviceStates);
+        newStates.set(data.deviceId, data);
+        return {
+          ...prev,
+          deviceStates: newStates,
+        };
+      });
+      console.log('[SSE] Device state:', data);
     });
 
     es.onerror = () => {
@@ -116,11 +131,21 @@ export function useGateEvents() {
     [state.deviceStatus]
   );
 
+  // Helper to get device state for maintainState utilities
+  const getDeviceState = useCallback(
+    (deviceId: string): DeviceState | undefined => {
+      return state.deviceStates.get(deviceId);
+    },
+    [state.deviceStates]
+  );
+
   return {
     connected: state.connected,
     deviceStatus: state.deviceStatus,
+    deviceStates: state.deviceStates,
     lastCommand: state.lastCommand,
     getDeviceActiveStatus,
+    getDeviceState,
     reconnect: connect,
   };
 }

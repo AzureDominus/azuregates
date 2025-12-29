@@ -4,11 +4,13 @@ import { Icon } from '@iconify/react';
 import { api } from '../lib/api';
 import { DeviceCard } from '../components/DeviceCard';
 import { IconButton, Badge } from '../components/ui';
+import { useGateEvents } from '../lib/useGateEvents';
 
 const routeApi = getRouteApi('/layout/devices/$deviceId');
 
 export function DeviceControl() {
   const { deviceId } = routeApi.useParams();
+  const { getDeviceState, getDeviceActiveStatus } = useGateEvents();
 
   const { data: device, isLoading, error } = useQuery({
     queryKey: ['device', deviceId],
@@ -50,7 +52,11 @@ export function DeviceControl() {
       </div>
 
       <div className="max-w-md">
-        <DeviceCard device={device} />
+        <DeviceCard 
+          device={device} 
+          activeStatus={getDeviceActiveStatus(device.id)}
+          deviceState={getDeviceState(device.id)}
+        />
       </div>
 
       <div className="glass-panel rounded-xl p-4">
