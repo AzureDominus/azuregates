@@ -518,7 +518,6 @@ function GrantPermissionModal({ userId, onClose }: { userId: string; onClose: ()
                   title={requiredReason || undefined}
                 >
                   {action}
-                  {requiredReason && <Icon icon="ph:lock-simple-fill" className="w-3 h-3 ml-1 opacity-60" />}
                 </ToggleButton>
               );
             })}
