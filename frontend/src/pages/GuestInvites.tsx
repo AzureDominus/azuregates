@@ -85,12 +85,12 @@ export function GuestInvites() {
   // Get all devices for the create form
   const allDevices = locations?.flatMap(l => 
     l.areas?.flatMap(a => 
-      a.devices?.map(d => ({ ...d, areaName: a.name, locationName: l.name })) || []
+      a.devices?.map(d => ({ ...d, areaId: a.id, areaName: a.name, locationName: l.name })) || []
     ) || []
   ) || [];
 
   const allAreas = locations?.flatMap(l =>
-    l.areas?.map(a => ({ ...a, locationName: l.name })) || []
+    l.areas?.map(a => ({ ...a, locationId: l.id, locationName: l.name })) || []
   ) || [];
 
   return (
@@ -224,7 +224,7 @@ interface CreateInviteFormProps {
 function CreateInviteForm({ devices, areas, locations, onSubmit, onCancel, isSubmitting, error }: CreateInviteFormProps) {
   const [scopeType, setScopeType] = useState<'LOCATION' | 'AREA' | 'DEVICE'>('DEVICE');
   const [scopeId, setScopeId] = useState('');
-  const [actions, setActions] = useState<string[]>(['open', 'close', 'stop']);
+  const [actions, setActions] = useState<string[]>([]);
   const [expiresInHours, setExpiresInHours] = useState(24);
   const [maxUses, setMaxUses] = useState<number | undefined>(undefined);
 
@@ -233,6 +233,41 @@ function CreateInviteForm({ devices, areas, locations, onSubmit, onCancel, isSub
     : scopeType === 'AREA' 
     ? areas 
     : locations;
+
+  // Compute available actions based on selected scope
+  const availableActions = (() => {
+    if (!scopeId) return [];
+    
+    let scopeDevices: any[] = [];
+    
+    if (scopeType === 'DEVICE') {
+      const device = devices.find((d: any) => d.id === scopeId);
+      if (device) scopeDevices = [device];
+    } else if (scopeType === 'AREA') {
+      // Get all devices in this area
+      scopeDevices = devices.filter((d: any) => d.areaId === scopeId);
+    } else if (scopeType === 'LOCATION') {
+      // Get all areas in this location, then all devices in those areas
+      const locationAreas = areas.filter((a: any) => a.locationId === scopeId);
+      const areaIds = locationAreas.map((a: any) => a.id);
+      scopeDevices = devices.filter((d: any) => areaIds.includes(d.areaId));
+    }
+    
+    // Collect all unique capabilities from scope devices
+    const allCapabilities = new Set<string>();
+    scopeDevices.forEach((d: any) => {
+      (d.capabilities || []).forEach((c: string) => allCapabilities.add(c));
+    });
+    
+    // Filter to only the actions we support in permissions (no toggle)
+    return ['open', 'close', 'stop', 'on', 'off'].filter(a => allCapabilities.has(a));
+  })();
+
+  // Reset actions when scope changes to only include valid actions
+  const handleScopeChange = (newScopeId: string) => {
+    setScopeId(newScopeId);
+    setActions([]); // Reset actions when scope changes
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -286,6 +321,7 @@ function CreateInviteForm({ devices, areas, locations, onSubmit, onCancel, isSub
           onChange={(e) => {
             setScopeType(e.target.value as any);
             setScopeId('');
+            setActions([]);
           }}
         >
           <option value="DEVICE">Single Device</option>
@@ -297,7 +333,7 @@ function CreateInviteForm({ devices, areas, locations, onSubmit, onCancel, isSub
         <Select
           label={scopeType === 'DEVICE' ? 'Device' : scopeType === 'AREA' ? 'Area' : 'Location'}
           value={scopeId}
-          onChange={(e) => setScopeId(e.target.value)}
+          onChange={(e) => handleScopeChange(e.target.value)}
           required
         >
           <option value="">Select...</option>
@@ -315,27 +351,35 @@ function CreateInviteForm({ devices, areas, locations, onSubmit, onCancel, isSub
           <label className="block text-xs font-mono text-gray-500 mb-2 uppercase tracking-wider">
             Allowed Actions
           </label>
-          <div className="flex flex-wrap gap-2">
-            {['open', 'close', 'stop', 'on', 'off'].map((action) => {
-              const requiredReason = isActionRequired(action);
-              return (
-                <ToggleButton
-                  key={action}
-                  active={actions.includes(action)}
-                  onClick={() => !requiredReason && toggleAction(action)}
-                  disabled={!!requiredReason}
-                  title={requiredReason || undefined}
-                >
-                  {action}
-                </ToggleButton>
-              );
-            })}
-          </div>
-          {actions.includes('close') && (
-            <p className="text-xs text-yellow-500/80 mt-2 flex items-center gap-1">
-              <Icon icon="ph:info-fill" className="w-3.5 h-3.5" />
-              Stop is required when close is enabled (safety)
-            </p>
+          {!scopeId ? (
+            <p className="text-sm text-gray-500 italic">Select a scope first to see available actions</p>
+          ) : availableActions.length === 0 ? (
+            <p className="text-sm text-yellow-500/80 italic">No actions available for selected scope</p>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {availableActions.map((action) => {
+                  const requiredReason = isActionRequired(action);
+                  return (
+                    <ToggleButton
+                      key={action}
+                      active={actions.includes(action)}
+                      onClick={() => !requiredReason && toggleAction(action)}
+                      disabled={!!requiredReason}
+                      title={requiredReason || undefined}
+                    >
+                      {action}
+                    </ToggleButton>
+                  );
+                })}
+              </div>
+              {actions.includes('close') && (
+                <p className="text-xs text-yellow-500/80 mt-2 flex items-center gap-1">
+                  <Icon icon="ph:info-fill" className="w-3.5 h-3.5" />
+                  Stop is required when close is enabled (safety)
+                </p>
+              )}
+            </>
           )}
         </div>
 

@@ -443,7 +443,40 @@ function GrantPermissionModal({ userId, onClose }: { userId: string; onClose: ()
     DEVICE: scopes.devices,
   }[scopeType] : [];
 
-  const allActions = ['open', 'close', 'stop', 'on', 'off'];
+  // Compute available actions based on selected scope
+  const availableActions = (() => {
+    if (!scopeId || !scopes) return [];
+    
+    let scopeDevices: typeof scopes.devices = [];
+    
+    if (scopeType === 'DEVICE') {
+      const device = scopes.devices.find(d => d.id === scopeId);
+      if (device) scopeDevices = [device];
+    } else if (scopeType === 'AREA') {
+      // Get all devices in this area
+      scopeDevices = scopes.devices.filter(d => d.areaId === scopeId);
+    } else if (scopeType === 'LOCATION') {
+      // Get all areas in this location, then all devices in those areas
+      const locationAreas = scopes.areas.filter(a => a.locationId === scopeId);
+      const areaIds = locationAreas.map(a => a.id);
+      scopeDevices = scopes.devices.filter(d => areaIds.includes(d.areaId));
+    }
+    
+    // Collect all unique capabilities from scope devices
+    const allCapabilities = new Set<string>();
+    scopeDevices.forEach(d => {
+      (d.capabilities || []).forEach(c => allCapabilities.add(c));
+    });
+    
+    // Filter to only the actions we support in permissions (no toggle)
+    return ['open', 'close', 'stop', 'on', 'off'].filter(a => allCapabilities.has(a));
+  })();
+
+  // Reset actions when scope changes
+  const handleScopeChange = (newScopeId: string) => {
+    setScopeId(newScopeId);
+    setActions([]); // Reset actions when scope changes
+  };
 
   const toggleAction = (action: string) => {
     setActions(prev => {
@@ -484,6 +517,7 @@ function GrantPermissionModal({ userId, onClose }: { userId: string; onClose: ()
           onChange={(e) => {
             setScopeType(e.target.value as 'LOCATION' | 'AREA' | 'DEVICE');
             setScopeId('');
+            setActions([]);
           }}
         >
           <option value="LOCATION">Location (all devices in location)</option>
@@ -495,7 +529,7 @@ function GrantPermissionModal({ userId, onClose }: { userId: string; onClose: ()
         <Select
           label={scopeType === 'LOCATION' ? 'Location' : scopeType === 'AREA' ? 'Area' : 'Device'}
           value={scopeId}
-          onChange={(e) => setScopeId(e.target.value)}
+          onChange={(e) => handleScopeChange(e.target.value)}
         >
           <option value="">Select...</option>
           {scopeOptions?.map((s) => (
@@ -506,27 +540,35 @@ function GrantPermissionModal({ userId, onClose }: { userId: string; onClose: ()
         {/* Actions */}
         <div>
           <label className="block text-xs font-mono text-gray-500 mb-2 uppercase tracking-wider">Allowed Actions</label>
-          <div className="flex flex-wrap gap-2">
-            {allActions.map((action) => {
-              const requiredReason = isActionRequired(action);
-              return (
-                <ToggleButton
-                  key={action}
-                  active={actions.includes(action)}
-                  onClick={() => !requiredReason && toggleAction(action)}
-                  disabled={!!requiredReason}
-                  title={requiredReason || undefined}
-                >
-                  {action}
-                </ToggleButton>
-              );
-            })}
-          </div>
-          {actions.includes('close') && (
-            <p className="text-xs text-yellow-500/80 mt-2 flex items-center gap-1">
-              <Icon icon="ph:info-fill" className="w-3.5 h-3.5" />
-              Stop is required when close is enabled (safety)
-            </p>
+          {!scopeId ? (
+            <p className="text-sm text-gray-500 italic">Select a scope first to see available actions</p>
+          ) : availableActions.length === 0 ? (
+            <p className="text-sm text-yellow-500/80 italic">No actions available for selected scope</p>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {availableActions.map((action) => {
+                  const requiredReason = isActionRequired(action);
+                  return (
+                    <ToggleButton
+                      key={action}
+                      active={actions.includes(action)}
+                      onClick={() => !requiredReason && toggleAction(action)}
+                      disabled={!!requiredReason}
+                      title={requiredReason || undefined}
+                    >
+                      {action}
+                    </ToggleButton>
+                  );
+                })}
+              </div>
+              {actions.includes('close') && (
+                <p className="text-xs text-yellow-500/80 mt-2 flex items-center gap-1">
+                  <Icon icon="ph:info-fill" className="w-3.5 h-3.5" />
+                  Stop is required when close is enabled (safety)
+                </p>
+              )}
+            </>
           )}
         </div>
 
