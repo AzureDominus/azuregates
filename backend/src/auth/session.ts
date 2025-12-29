@@ -47,14 +47,15 @@ export async function setupSession(app: FastifyInstance): Promise<void> {
   logger.info('Redis session store connected');
 
   // Import connect-redis and create store
+  // Use dynamic import to get the class (ESM named export)
   const connectRedis = await import('connect-redis');
-  const RedisStore = connectRedis.default;
+  const RedisStore = connectRedis.RedisStore;
   
   // Create Redis store with the redis client
-  const redisStore = new (RedisStore as any)({
+  const redisStore = new RedisStore({
     client: redisClient,
     prefix: 'gates:session:',
-    ttl: 86400, // 24 hours
+    ttl: 86400, // 24 hours in seconds
   });
 
   // Register session plugin

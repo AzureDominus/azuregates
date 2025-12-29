@@ -26,7 +26,6 @@
     "@fastify/helmet": "^13.0.1",
     "@fastify/session": "^11.0.2",
     "@prisma/client": "^6.9.0",
-    "@types/connect-redis": "^0.0.23",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "connect-redis": "^9.0.0",
