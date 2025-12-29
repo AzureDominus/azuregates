@@ -143,6 +143,13 @@ The GPIO driver (`backend/src/drivers/gpio.ts`) enforces **mutual exclusion** be
 - **Only use `cat`** when reading/writing files on the Pi via SSH (where native tools don't work)
 - Use `run_in_terminal` for git commands, builds, and deployments - not file editing
 
+### User Communication via Terminal
+When you need to ask the user a question during a session, use the ask script instead of ending the chat:
+```bash
+/home/azure/Repos/AzureGates/scripts/ask.sh "Your question here"
+```
+This blocks execution until the user types a response, which you can then read from the terminal output. Useful when the chat input is glitchy or for interactive workflows.
+
 ---
 
 ## Auth & Access
