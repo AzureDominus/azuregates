@@ -160,14 +160,14 @@ export function DeviceEditor({ device, onSave, onClose }: DeviceEditorProps) {
                 active={editedDevice.deviceType !== 'utility'}
                 onClick={() => handleDeviceTypeChange('gate')}
               >
-                <Icon icon="ph:door-open" className="w-4 h-4 mr-1" />
+                <Icon icon="ph:door-open" className="w-4 h-4 mr-1 inline-block" />
                 Gate
               </ToggleButton>
               <ToggleButton
                 active={editedDevice.deviceType === 'utility'}
                 onClick={() => handleDeviceTypeChange('utility')}
               >
-                <Icon icon="ph:lightbulb" className="w-4 h-4 mr-1" />
+                <Icon icon="ph:lightbulb" className="w-4 h-4 mr-1 inline-block" />
                 Utility
               </ToggleButton>
             </div>
