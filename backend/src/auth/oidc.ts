@@ -42,6 +42,48 @@ function generateCodeChallenge(verifier: string): string {
   return createHash('sha256').update(verifier).digest('base64url');
 }
 
+// Refresh tokens if access token is expired or about to expire
+async function refreshTokensIfNeeded(request: FastifyRequest): Promise<boolean> {
+  const session = request.session as any;
+  
+  // Skip if no refresh token or guest user
+  if (!session.refreshToken || session.user?.isGuest) {
+    return true; // No refresh needed for guests
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const expiresAt = session.accessTokenExpiresAt;
+  
+  // Refresh if token expires in less than 5 minutes (300 seconds)
+  if (expiresAt && expiresAt - now > 300) {
+    return true; // Token still valid
+  }
+
+  logger.debug({ expiresAt, now }, 'Access token expired or expiring soon, attempting refresh');
+
+  try {
+    const oidc = await getOidcConfig();
+    
+    // Use refresh token to get new tokens
+    const tokens = await openidClient.refreshTokenGrant(oidc, session.refreshToken);
+    
+    // Update session with new tokens
+    session.idToken = tokens.id_token || session.idToken;
+    session.refreshToken = tokens.refresh_token || session.refreshToken;
+    const expiresIn = tokens.expiresIn();
+    session.accessTokenExpiresAt = expiresIn ? Math.floor(Date.now() / 1000) + expiresIn : undefined;
+    
+    await request.session.save();
+    logger.info({ userId: session.user?.id }, 'Successfully refreshed access token');
+    return true;
+  } catch (err) {
+    logger.warn({ err, userId: session.user?.id }, 'Failed to refresh access token');
+    // If refresh fails, the session is effectively invalid
+    // Let the request continue but the next /me check will show unauthenticated
+    return false;
+  }
+}
+
 export async function oidcRoutes(app: FastifyInstance) {
   // Get current user info
   app.get('/me', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -52,6 +94,20 @@ export async function oidcRoutes(app: FastifyInstance) {
         authenticated: false,
         user: null,
       });
+    }
+
+    // Try to refresh tokens if needed (for non-guest OIDC sessions)
+    if (!user.isGuest) {
+      const refreshed = await refreshTokensIfNeeded(request);
+      if (!refreshed) {
+        // Token refresh failed - session is invalid, force re-login
+        request.session.destroy();
+        return reply.send({
+          authenticated: false,
+          user: null,
+          reason: 'session_expired',
+        });
+      }
     }
 
     // For non-guest users, re-check activation status from database
@@ -259,8 +315,12 @@ export async function oidcRoutes(app: FastifyInstance) {
         wasEverActivated: !!user.activatedAt,
       };
       
-      // Store id_token for logout
+      // Store tokens for logout and refresh flow
       session.idToken = tokens.id_token;
+      session.refreshToken = tokens.refresh_token;
+      // Calculate token expiry (tokens.expiresIn() returns seconds until expiry)
+      const expiresIn = tokens.expiresIn();
+      session.accessTokenExpiresAt = expiresIn ? Math.floor(Date.now() / 1000) + expiresIn : undefined;
 
       await request.session.save();
 

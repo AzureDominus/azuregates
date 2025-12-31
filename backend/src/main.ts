@@ -56,18 +56,20 @@ try {
   await setupSession(app);
 } catch (err) {
   app.log.warn({ err }, 'Failed to setup Redis session store, using in-memory fallback');
-  // Register in-memory session as fallback
+  // Register in-memory session as fallback (30-day TTL to match Redis config)
   const session = await import('@fastify/session');
+  const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
   await app.register(session.default, {
     secret: config.sessionSecret,
     cookie: {
       secure: config.nodeEnv === 'production',
       httpOnly: true,
       sameSite: 'lax',
-      maxAge: 86400000,
+      maxAge: SESSION_TTL_MS,
       path: '/',
     },
     saveUninitialized: false,
+    rolling: true, // Extend session on each request
   });
   app.log.info('In-memory session middleware configured as fallback');
 }

@@ -27,6 +27,10 @@ export interface SessionData {
   user?: SessionUser;
   guestToken?: string;
   returnTo?: string;
+  // OIDC tokens for refresh flow
+  idToken?: string;
+  refreshToken?: string;
+  accessTokenExpiresAt?: number; // Unix timestamp in seconds
 }
 
 // Extend Fastify session types
@@ -51,11 +55,16 @@ export async function setupSession(app: FastifyInstance): Promise<void> {
   const connectRedis = await import('connect-redis');
   const RedisStore = connectRedis.RedisStore;
   
+  // Session TTL: 30 days of inactivity
+  // The refresh token flow will keep extending the session as long as the user is active
+  const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
+  const SESSION_TTL_MS = SESSION_TTL_SECONDS * 1000;
+
   // Create Redis store with the redis client
   const redisStore = new RedisStore({
     client: redisClient,
     prefix: 'gates:session:',
-    ttl: 86400, // 24 hours in seconds
+    ttl: SESSION_TTL_SECONDS,
   });
 
   // Register session plugin
@@ -66,10 +75,11 @@ export async function setupSession(app: FastifyInstance): Promise<void> {
       secure: config.nodeEnv === 'production',
       httpOnly: true,
       sameSite: 'lax',
-      maxAge: 86400000, // 24 hours in ms
+      maxAge: SESSION_TTL_MS,
       path: '/',
     },
     saveUninitialized: false,
+    rolling: true, // Extend session TTL on each request
   });
 
   logger.info('Session middleware configured');
