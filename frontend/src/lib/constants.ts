@@ -7,7 +7,7 @@
 export const APP_NAME = 'AzureGates';
 export const APP_SHORT_NAME = 'Gates';
 export const APP_DESCRIPTION = 'Secure Access Control System';
-export const APP_VERSION = '1.1.14';
+export const APP_VERSION = '1.1.16';
 
 // Company info
 export const COMPANY_NAME = 'AzureTech';

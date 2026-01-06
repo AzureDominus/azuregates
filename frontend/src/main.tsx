@@ -7,6 +7,45 @@ import { AuthProvider } from './lib/auth';
 import { StartupScreen } from './components/StartupScreen';
 import './index.css';
 
+// Debug logging for mobile debugging
+const DEBUG_ENABLED = new URLSearchParams(window.location.search).has('debug');
+const debugLogs: string[] = [];
+const maxDebugLogs = 50;
+
+function debugLog(msg: string) {
+  const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+  const entry = `[${timestamp}] ${msg}`;
+  console.log('[DEBUG]', entry);
+  if (DEBUG_ENABLED) {
+    debugLogs.unshift(entry);
+    if (debugLogs.length > maxDebugLogs) debugLogs.pop();
+    updateDebugOverlay();
+  }
+}
+
+function updateDebugOverlay() {
+  let overlay = document.getElementById('debug-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'debug-overlay';
+    overlay.style.cssText = `
+      position: fixed; bottom: 0; left: 0; right: 0; max-height: 40vh;
+      background: rgba(0,0,0,0.9); color: #0f0; font-family: monospace;
+      font-size: 10px; padding: 8px; overflow-y: auto; z-index: 99999;
+      white-space: pre-wrap; word-break: break-all;
+    `;
+    document.body.appendChild(overlay);
+  }
+  overlay.textContent = debugLogs.join('\n');
+}
+
+// Expose globally for SW messages
+(window as any).__debugLog = debugLog;
+
+debugLog(`Page load: ${window.location.pathname}`);
+debugLog(`SW controller: ${navigator.serviceWorker?.controller ? 'yes' : 'no'}`);
+debugLog(`UA: ${navigator.userAgent.slice(0, 60)}...`);
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -89,39 +128,8 @@ function AppWrapper() {
   );
 }
 
-// Register service worker for PWA
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then((registration) => {
-      console.log('[App] Service worker registered:', registration.scope);
-
-      // Check for updates on page load
-      registration.update();
-
-      // Listen for new service worker installing
-      registration.addEventListener('updatefound', () => {
-        const newWorker = registration.installing;
-        if (newWorker) {
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New content is available, notify user
-              console.log('[App] New version available');
-              // The Layout component will handle showing the update notification
-            }
-          });
-        }
-      });
-    }).catch((error) => {
-      console.error('[App] Service worker registration failed:', error);
-    });
-
-    // Handle controller change (new SW activated)
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      console.log('[App] New service worker activated, reloading...');
-      window.location.reload();
-    });
-  });
-}
+// Service worker registration is handled by usePWAInstall.ts hook in Layout
+// Don't register here to avoid duplicate registration issues
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
