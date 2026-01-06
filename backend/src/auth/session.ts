@@ -31,6 +31,9 @@ export interface SessionData {
   idToken?: string;
   refreshToken?: string;
   accessTokenExpiresAt?: number; // Unix timestamp in seconds
+  // OIDC flow state (for CSRF protection and PKCE)
+  oidcState?: string;
+  pkceCodeVerifier?: string;
 }
 
 // Extend Fastify session types
@@ -78,7 +81,8 @@ export async function setupSession(app: FastifyInstance): Promise<void> {
       maxAge: SESSION_TTL_MS,
       path: '/',
     },
-    saveUninitialized: false,
+    // Must be true to save OIDC state/PKCE before authentication completes
+    saveUninitialized: true,
     rolling: true, // Extend session TTL on each request
   });
 

@@ -49,6 +49,10 @@ export function Login() {
             <p className="text-danger text-sm font-mono">
               {error === 'auth_failed'
                 ? 'Authentication failed. Access denied.'
+                : error === 'session_expired'
+                ? 'Session expired. Please try again.'
+                : error === 'state_mismatch'
+                ? 'Security validation failed. Please try again.'
                 : 'System error. Please retry.'}
             </p>
           </div>

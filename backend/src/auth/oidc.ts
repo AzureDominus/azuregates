@@ -8,7 +8,6 @@ import { getCurrentUser, type SessionUser } from './session.js';
 
 // OIDC configuration cache
 let oidcConfig: openidClient.Configuration | null = null;
-let codeVerifier: string | null = null;
 
 async function getOidcConfig(): Promise<openidClient.Configuration> {
   if (oidcConfig) return oidcConfig;
@@ -172,15 +171,20 @@ export async function oidcRoutes(app: FastifyInstance) {
       const oidc = await getOidcConfig();
       
       // Generate PKCE code verifier/challenge
-      codeVerifier = generateCodeVerifier();
+      const codeVerifier = generateCodeVerifier();
       const codeChallenge = generateCodeChallenge(codeVerifier);
 
       // Generate state for CSRF protection
       const state = randomBytes(16).toString('hex');
 
-      // Store return URL and state in session
+      // Store return URL, state, and PKCE verifier in session
       const session = request.session as any;
       session.returnTo = request.query.returnTo || '/';
+      session.oidcState = state;
+      session.pkceCodeVerifier = codeVerifier;
+      await request.session.save();
+      
+      logger.debug({ hasSession: !!session, state: state.substring(0, 8) }, 'Stored OIDC state in session');
 
       // Determine the base URL and auth URL based on the incoming request
       // Check if request is from configured BASE_URL (remote) or local access
@@ -225,6 +229,35 @@ export async function oidcRoutes(app: FastifyInstance) {
     try {
       const oidc = await getOidcConfig();
       
+      // Retrieve state and PKCE verifier from session
+      const session = request.session as any;
+      const storedState = session.oidcState;
+      const storedCodeVerifier = session.pkceCodeVerifier;
+      
+      // Clear the OIDC flow data from session (one-time use)
+      delete session.oidcState;
+      delete session.pkceCodeVerifier;
+      
+      // Validate that we have the required session data
+      if (!storedState || !storedCodeVerifier) {
+        logger.warn({ 
+          hasState: !!storedState, 
+          hasVerifier: !!storedCodeVerifier,
+          sessionId: request.session?.sessionId?.substring(0, 8),
+        }, 'OIDC callback missing session data - possible cookie/session issue');
+        return reply.redirect('/login?error=session_expired');
+      }
+      
+      // Validate state matches (CSRF protection)
+      const urlState = request.query.state;
+      if (urlState !== storedState) {
+        logger.warn({ 
+          expected: storedState?.substring(0, 8), 
+          received: urlState?.substring(0, 8),
+        }, 'OIDC state mismatch - possible CSRF or session issue');
+        return reply.redirect('/login?error=state_mismatch');
+      }
+      
       // Determine base URL dynamically based on incoming request
       const requestHost = request.headers.host || '';
       const baseUrlHost = new URL(config.baseUrl).host;
@@ -236,8 +269,8 @@ export async function oidcRoutes(app: FastifyInstance) {
       // Exchange code for tokens
       const currentUrl = new URL(request.url, effectiveBaseUrl);
       const tokens = await openidClient.authorizationCodeGrant(oidc, currentUrl, {
-        expectedState: request.query.state as any,
-        pkceCodeVerifier: codeVerifier!,
+        expectedState: openidClient.skipStateCheck,
+        pkceCodeVerifier: storedCodeVerifier,
       });
 
       // Get user info from claims
@@ -302,8 +335,7 @@ export async function oidcRoutes(app: FastifyInstance) {
         'User authenticated successfully'
       );
 
-      // Set session with activation status
-      const session = request.session as any;
+      // Set session with activation status (reuse existing session variable)
       session.user = {
         id: user.id,
         externalId: user.externalId,
