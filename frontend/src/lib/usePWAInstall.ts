@@ -186,8 +186,23 @@ export function useServiceWorker() {
       }
     }
 
+    // Track if we had a controller when the page loaded
+    // If not, this is a first install and we shouldn't reload on controllerchange
+    const hadControllerOnLoad = !!navigator.serviceWorker.controller;
+
     // Listen for controller changes (new SW activated)
+    // This is the authoritative signal that a new SW has taken control
+    let hasReloaded = false;
     const handleControllerChange = () => {
+      // Don't reload if:
+      // 1. We already reloaded
+      // 2. This is first install (no previous controller)
+      if (hasReloaded) return;
+      if (!hadControllerOnLoad) {
+        console.log('[App] First SW install, skipping reload');
+        return;
+      }
+      hasReloaded = true;
       console.log('[App] Service worker controller changed, reloading...');
       window.location.reload();
     };
@@ -195,12 +210,12 @@ export function useServiceWorker() {
     navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
 
     // Listen for messages from service worker
+    // SW_UPDATED is informational - we don't auto-reload here since controllerchange handles it
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'SW_UPDATED') {
         console.log('[App] Service worker updated to:', event.data.version);
-        // If we get this message, the new SW is already active
-        // Reload to get the new version
-        window.location.reload();
+        // Don't reload here - controllerchange event will handle the reload
+        // This prevents double-reload issues
       }
     };
 

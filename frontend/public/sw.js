@@ -59,27 +59,29 @@ self.addEventListener('activate', (event) => {
   
   event.waitUntil(
     caches.keys().then((cacheNames) => {
+      const oldCaches = cacheNames.filter((name) => name.startsWith('gates-cache-') && name !== CACHE_NAME);
       return Promise.all(
-        cacheNames
-          .filter((name) => name.startsWith('gates-cache-') && name !== CACHE_NAME)
-          .map((name) => {
-            console.log(`[SW] Deleting old cache: ${name}`);
-            return caches.delete(name);
-          })
-      );
-    }).then(() => {
+        oldCaches.map((name) => {
+          console.log(`[SW] Deleting old cache: ${name}`);
+          return caches.delete(name);
+        })
+      ).then(() => oldCaches.length); // Return count of deleted caches
+    }).then((deletedCount) => {
       // Claim all clients immediately
-      return self.clients.claim();
-    }).then(() => {
-      // Notify all clients that the SW has been updated
-      return self.clients.matchAll({ type: 'window' }).then((clients) => {
-        clients.forEach((client) => {
-          client.postMessage({
-            type: 'SW_UPDATED',
-            version: APP_VERSION,
+      return self.clients.claim().then(() => deletedCount);
+    }).then((deletedCount) => {
+      // Only notify clients if we actually cleaned up old caches (meaning this is an update)
+      // Skip notification on first install to avoid unnecessary reloads
+      if (deletedCount > 0) {
+        return self.clients.matchAll({ type: 'window' }).then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({
+              type: 'SW_UPDATED',
+              version: APP_VERSION,
+            });
           });
         });
-      });
+      }
     })
   );
 });
